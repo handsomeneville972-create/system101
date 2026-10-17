@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PROFESSIONS } from "@/lib/domain";
 
+export const instant = false;
+
 export default async function ProfessionPage({ params }: { params: Promise<{ profession: string }> }) {
   const { profession } = await params;
   const meta = PROFESSIONS.find((p) => p.slug === profession);

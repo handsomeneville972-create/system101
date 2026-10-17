@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { initTransaction } from "@/lib/paystack";
 
 export async function POST(req: Request) {
-  const { surface } = await req.json().catch(() => ({ surface: "home" }));
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
+  const body = await req.json().catch(() => ({}));
+  const surface = String(body.surface ?? "home");
+  const amountUsd = Math.max(2, Number(body.amountUsd ?? 5));
+  const email = String(body.email ?? process.env.DONATION_EMAIL ?? "support@001system.dev");
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+  try {
+    const data = await initTransaction({
+      email,
+      amountUsd,
+      callbackUrl: `${site}/${surface}?donated=1`,
+      metadata: { surface, kind: "donation", cancel_url: `${site}/${surface}?donated=0` },
+    });
+    return NextResponse.json({ url: data.authorization_url, reference: data.reference });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    line_items: [{ price_data: { currency: "usd", product_data: { name: `0.01%SYSTEM donation (${surface})` } }, unit_amount: 500 }, quantity: 1 }],
-    success_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/${surface}?donated=1`,
-    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/${surface}?donated=0`,
-    metadata: { surface: String(surface), kind: "donation" },
-  });
-  return NextResponse.json({ url: session.url });
 }
