@@ -14,3 +14,4 @@
 - 2026-10-17: Find'em publicly browsable (anon reads via supabase-public.ts); sign-in required to act.
 - 2026-10-17: Suggy = member-only 80% vote in-group (settle_suggy RPC) + separate global up/down table (suggy_global_votes) for published feed. Downvote requires reason, no auto-abort.
 - 2026-10-17: Signals can only be posted by the group leader and only when the group is active.
+- 2026-10-17: schema.sql reordered (tables → helper functions → RLS → trigger → RPCs → indexes) so it applies top-to-bottom in one paste without the check_function_bodies workaround. Prod domain: system101.network (Vercel).
