@@ -1,3 +1,13 @@
+# 0.01%SYSTEM
+
+Find your people. Build. Grow.
+
+- Setup & deployment: [docs/setup/deploy.md](docs/setup/deploy.md)
+- Feature briefs: [docs/features](docs/features)
+- Database schema: [supabase/schema.sql](supabase/schema.sql)
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
