@@ -7,3 +7,8 @@
 - 2026-10-17: Payments switched Stripe -> Paystack (user request). USD currency (min $2.00), paid ebook floor raised to $2.99. Author payouts via Paystack subaccounts/splits (platform 10%).
 - 2026-10-17: Supabase project geqyrbdxlqhicoytgrq wired. New-style keys (sb_publishable/sb_secret). Secrets file moved to C:\Users\Neville\.keys and must be rotated.
 - 2026-10-17: Schema apply method = user pastes SQL in Supabase dashboard.
+- 2026-10-17: Auth = email magic-link only (no OAuth/passwords). Sign-up reuses signInWithOtp.
+- 2026-10-17: Group invites = shareable token links (no email infra yet); 2 accepted activates group (accept_group_invite RPC).
+- 2026-10-17: Vote settlement = SQL RPC settle_join_request (single source of truth, atomic) instead of TS.
+- 2026-10-17: Next 16 uses proxy.ts (not middleware.ts) — Node runtime, Supabase session refresh + route protection.
+- 2026-10-17: Find'em publicly browsable (anon reads via supabase-public.ts); sign-in required to act.

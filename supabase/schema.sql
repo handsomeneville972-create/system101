@@ -120,6 +120,9 @@ create policy "votes read" on public.request_votes for select
 create policy "votes member insert" on public.request_votes for insert
   with check (auth.uid() = voter_id
     and exists (select 1 from public.join_requests r where r.id = request_id and public.is_group_member(r.group_id, auth.uid())));
+drop policy if exists "votes member update" on public.request_votes;
+create policy "votes member update" on public.request_votes for update
+  using (auth.uid() = voter_id) with check (auth.uid() = voter_id);
 
 -- =========================================================
 -- ebooks + reviews
@@ -248,3 +251,125 @@ create index if not exists idx_suggies_status on public.suggies(status);
 create index if not exists idx_ebooks_status on public.ebooks(status);
 create index if not exists idx_reviews_ebook on public.reviews(ebook_id);
 create index if not exists idx_payments_buyer on public.payments(buyer_id);
+
+-- =========================================================
+-- Find'em wiring: invites + RPC settlement
+-- =========================================================
+
+alter table public.profiles add column if not exists goals text;
+
+create table if not exists public.group_invites (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid references public.groups(id) on delete cascade,
+  email text,
+  token text unique not null default replace(gen_random_uuid()::text, '-', ''),
+  status text default 'invited' check (status in ('invited','accepted','expired')),
+  expires_at timestamptz default (now() + interval '72 hours'),
+  created_at timestamptz default now()
+);
+alter table public.group_invites enable row level security;
+drop policy if exists "invites leader read" on public.group_invites;
+drop policy if exists "invites leader insert" on public.group_invites;
+create policy "invites leader read" on public.group_invites for select
+  using (public.is_group_leader(group_id, auth.uid()));
+create policy "invites leader insert" on public.group_invites for insert
+  with check (public.is_group_leader(group_id, auth.uid()));
+
+-- atomic join-request settlement (80% supermajority, 48h, leader tie-break)
+create or replace function public.settle_join_request(p_request uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  r public.join_requests;
+  v_members int;
+  v_yes int;
+  v_no int;
+  v_leader_yes boolean := false;
+  v_pass boolean;
+begin
+  select * into r from public.join_requests where id = p_request for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if r.status <> 'pending' then return jsonb_build_object('status', r.status); end if;
+
+  select count(*) into v_members from public.group_members where group_id = r.group_id;
+  select count(*) filter (where yes), count(*) filter (where not yes)
+    into v_yes, v_no from public.request_votes where request_id = p_request;
+  select coalesce(bool_or(vv.yes), false) into v_leader_yes
+    from public.request_votes vv
+    join public.groups g on g.id = r.group_id
+    where vv.request_id = p_request and vv.voter_id = g.leader_id;
+
+  if (v_yes + v_no) = 0 then
+    v_pass := false;
+  elsif (v_yes + v_no) >= v_members then
+    v_pass := (v_yes::numeric / greatest(v_members, 1)) >= 0.8
+              or (v_yes = v_no and v_leader_yes);
+  else
+    v_pass := (v_yes::numeric / (v_yes + v_no)) >= 0.8;
+  end if;
+
+  if v_pass then
+    insert into public.group_members(group_id, user_id, role)
+      values (r.group_id, r.user_id, 'member') on conflict do nothing;
+    update public.join_requests set status = 'approved' where id = p_request;
+    return jsonb_build_object('status', 'approved');
+  end if;
+
+  if (v_yes + v_no) >= v_members or now() >= r.decide_by then
+    update public.join_requests set status = 'denied' where id = p_request;
+    return jsonb_build_object('status', 'denied');
+  end if;
+
+  return jsonb_build_object('status', 'pending', 'yes', v_yes, 'no', v_no);
+end;
+$$;
+
+-- accept an invite link; activates group once 2 invites accepted
+create or replace function public.accept_group_invite(p_token text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  inv public.group_invites;
+  uid uuid := auth.uid();
+  v_accepted int;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+  select * into inv from public.group_invites where token = p_token for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if inv.status = 'accepted' then
+    insert into public.group_members(group_id, user_id, role)
+      values (inv.group_id, uid, 'member') on conflict do nothing;
+    return jsonb_build_object('status', 'already');
+  end if;
+  if inv.expires_at is not null and now() > inv.expires_at then
+    update public.group_invites set status = 'expired' where id = inv.id;
+    return jsonb_build_object('status', 'expired');
+  end if;
+
+  update public.group_invites set status = 'accepted' where id = inv.id;
+  insert into public.group_members(group_id, user_id, role)
+    values (inv.group_id, uid, 'member') on conflict do nothing;
+
+  select count(*) into v_accepted
+    from public.group_invites where group_id = inv.group_id and status = 'accepted';
+  if v_accepted >= 2 then
+    update public.groups set active = true where id = inv.group_id;
+  end if;
+
+  return jsonb_build_object('status', 'accepted', 'active', v_accepted >= 2);
+end;
+$$;
+
+-- public-safe invite preview by token
+create or replace function public.join_invite_info(p_token text)
+returns jsonb language sql security definer stable set search_path = public as $$
+  select jsonb_build_object(
+    'group_name', g.name,
+    'group_slug', g.slug,
+    'status', i.status,
+    'expired', (i.expires_at is not null and now() > i.expires_at)
+  )
+  from public.group_invites i
+  join public.groups g on g.id = i.group_id
+  where i.token = p_token;
+$$;
+
+create index if not exists idx_group_invites_group on public.group_invites(group_id, status);

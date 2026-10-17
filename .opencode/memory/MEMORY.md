@@ -15,6 +15,12 @@ Slogan: Grow. Audience: aspirational builders, dreamers, goal-oriented community
 - P1 DONE: Find'em list/profession/group pages + voting util (80%/48h) + schema
 - P2 DONE: Suggy feed, Ebooku list/upload, Apps soon, De-Course soon, Settings toggles, Auth OTP, Paystack donate + webhook
 - 2026-10-17: Paystack swapped in (src/lib/paystack.ts), .env.local created, secrets moved out. TODO: add PAYSTACK_SECRET_KEY, apply schema.sql in dashboard, Storage buckets, server actions for votes/uploads, splits payouts, RLS tightening, npm install + build
+- 2026-10-17: Find'em wired to real data. `src/proxy.ts` (Next16 proxy replaces middleware; Supabase session refresh + protected /home /groups/new /groups/join /onboarding /settings). `/auth/callback` exchanges code. Email magic-link auth (sign-in/sign-up both `signInWithOtp` + emailRedirectTo). `src/lib/auth.ts` (getUser/requireUser/getProfile), `src/lib/supabase-public.ts` (anon, no-cookie reads), `src/lib/data/groups.ts` (professionCounts/groupsByProfession/groupBySlug/myGroups), `src/lib/actions/{auth,groups}.ts`. Schema: profiles.goals, group_invites table, RPCs settle_join_request / accept_group_invite / join_invite_info, votes update policy. Navbar AuthNav in Suspense. Lint+build green (22 routes).
+
+## Still TODO (needs user in Supabase dashboard)
+- Apply updated supabase/schema.sql (invites + RPCs + votes update policy)
+- Auth: Site URL http://localhost:3000, redirect http://localhost:3000/auth/callback
+- Add PAYSTACK_SECRET_KEY; rotate Supabase secret key; confirm USD on Paystack
 
 ## Conventions
 - Run: npm run dev / build / lint. Node 24, npm 11.
