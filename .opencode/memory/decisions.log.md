@@ -12,3 +12,5 @@
 - 2026-10-17: Vote settlement = SQL RPC settle_join_request (single source of truth, atomic) instead of TS.
 - 2026-10-17: Next 16 uses proxy.ts (not middleware.ts) — Node runtime, Supabase session refresh + route protection.
 - 2026-10-17: Find'em publicly browsable (anon reads via supabase-public.ts); sign-in required to act.
+- 2026-10-17: Suggy = member-only 80% vote in-group (settle_suggy RPC) + separate global up/down table (suggy_global_votes) for published feed. Downvote requires reason, no auto-abort.
+- 2026-10-17: Signals can only be posted by the group leader and only when the group is active.

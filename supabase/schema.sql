@@ -373,3 +373,86 @@ returns jsonb language sql security definer stable set search_path = public as $
 $$;
 
 create index if not exists idx_group_invites_group on public.group_invites(group_id, status);
+
+-- =========================================================
+-- Suggy wiring: member votes + global up/down + settlement
+-- =========================================================
+
+alter table public.suggies add column if not exists outcome_reason text;
+
+drop policy if exists "suggy_votes member update" on public.suggy_votes;
+create policy "suggy_votes member update" on public.suggy_votes for update
+  using (auth.uid() = voter_id) with check (auth.uid() = voter_id);
+
+-- global up/down on published signals (any signed-in user)
+create table if not exists public.suggy_global_votes (
+  suggy_id uuid references public.suggies(id) on delete cascade,
+  voter_id uuid references public.profiles(id) on delete cascade,
+  up boolean not null,
+  created_at timestamptz default now(),
+  primary key (suggy_id, voter_id)
+);
+alter table public.suggy_global_votes enable row level security;
+drop policy if exists "global votes read" on public.suggy_global_votes;
+drop policy if exists "global votes insert" on public.suggy_global_votes;
+drop policy if exists "global votes update" on public.suggy_global_votes;
+create policy "global votes read" on public.suggy_global_votes for select using (true);
+create policy "global votes insert" on public.suggy_global_votes for insert
+  with check (auth.uid() = voter_id
+    and exists (select 1 from public.suggies s where s.id = suggy_id and s.status = 'published'));
+create policy "global votes update" on public.suggy_global_votes for update
+  using (auth.uid() = voter_id) with check (auth.uid() = voter_id);
+
+-- atomic suggy settlement (80% of members, 48h, leader tie-break)
+create or replace function public.settle_suggy(p_suggy uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  s public.suggies;
+  v_members int;
+  v_up int;
+  v_down int;
+  v_leader_up boolean := false;
+  v_pass boolean;
+  v_reason text;
+begin
+  select * into s from public.suggies where id = p_suggy for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if s.status <> 'voting' then return jsonb_build_object('status', s.status); end if;
+
+  select count(*) into v_members from public.group_members where group_id = s.group_id;
+  select count(*) filter (where up), count(*) filter (where not up)
+    into v_up, v_down from public.suggy_votes where suggy_id = p_suggy;
+  select coalesce(bool_or(vv.up), false) into v_leader_up
+    from public.suggy_votes vv
+    join public.groups g on g.id = s.group_id
+    where vv.suggy_id = p_suggy and vv.voter_id = g.leader_id;
+  select reason into v_reason from public.suggy_votes
+    where suggy_id = p_suggy and not up and reason is not null
+    order by created_at desc limit 1;
+
+  if (v_up + v_down) = 0 then
+    v_pass := false;
+  elsif (v_up + v_down) >= v_members then
+    v_pass := (v_up::numeric / greatest(v_members, 1)) >= 0.8 or (v_up = v_down and v_leader_up);
+  else
+    v_pass := (v_up::numeric / (v_up + v_down)) >= 0.8;
+  end if;
+
+  update public.suggies set votes_yes = v_up, votes_no = v_down where id = p_suggy;
+
+  if v_pass then
+    update public.suggies set status = 'published', outcome_reason = null where id = p_suggy;
+    return jsonb_build_object('status', 'published');
+  end if;
+
+  if (v_up + v_down) >= v_members or now() >= s.decide_by then
+    update public.suggies set status = 'rejected', outcome_reason = v_reason where id = p_suggy;
+    return jsonb_build_object('status', 'rejected');
+  end if;
+
+  return jsonb_build_object('status', 'voting', 'up', v_up, 'down', v_down);
+end;
+$$;
+
+create index if not exists idx_suggies_group_status on public.suggies(group_id, status);
+create index if not exists idx_global_votes_suggy on public.suggy_global_votes(suggy_id, up);

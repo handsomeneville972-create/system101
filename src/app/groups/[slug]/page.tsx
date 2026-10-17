@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { groupBySlug } from "@/lib/data/groups";
+import { groupSignals } from "@/lib/data/suggy";
 import { getUser } from "@/lib/auth";
 import { JoinRequestForm } from "@/components/groups/JoinRequestForm";
 import { VotePanel } from "@/components/groups/VotePanel";
 import { InviteLinks } from "@/components/groups/InviteLinks";
+import { CreateSuggyForm } from "@/components/suggy/CreateSuggyForm";
+import { SuggyVotePanel } from "@/components/suggy/SuggyVotePanel";
 
 export const instant = false;
 
@@ -22,6 +25,7 @@ export default async function GroupPage({
 
   const user = await getUser();
   const memberCount = group.members.length;
+  const signals = group.isMember ? await groupSignals(group.id) : [];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -72,6 +76,18 @@ export default async function GroupPage({
             <h2 className="text-sm font-medium">Join requests</h2>
             <div className="mt-3">
               <VotePanel slug={group.slug} requests={group.openRequests} />
+            </div>
+          </div>
+          <div className="card p-6">
+            <h2 className="text-sm font-medium">Signals</h2>
+            <div className="mt-3 space-y-4">
+              {group.isLeader && group.active && (
+                <CreateSuggyForm groupId={group.id} slug={group.slug} />
+              )}
+              {group.isLeader && !group.active && (
+                <p className="text-sm text-zinc-500">Activate the group to post signals.</p>
+              )}
+              <SuggyVotePanel slug={group.slug} signals={signals} />
             </div>
           </div>
           <div className="card p-6">

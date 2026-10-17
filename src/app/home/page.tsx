@@ -2,12 +2,16 @@ import Link from "next/link";
 import { DonateButton } from "@/components/DonateButton";
 import { getProfile } from "@/lib/auth";
 import { myGroups } from "@/lib/data/groups";
+import { trendingSignals } from "@/lib/data/suggy";
 
 export const instant = false;
 
 export default async function HomePage() {
-  const profile = await getProfile();
-  const groups = await myGroups();
+  const [profile, groups, trending] = await Promise.all([
+    getProfile(),
+    myGroups(),
+    trendingSignals(),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -46,7 +50,31 @@ export default async function HomePage() {
             </ul>
           )}
         </div>
-        <div className="card p-6">Trending suggies — up/down only.</div>
+        <div className="card p-6">
+          <h2 className="text-sm font-medium">Trending suggies</h2>
+          {trending.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">
+              Nothing yet.{" "}
+              <Link href="/suggy" className="text-zinc-200 underline">
+                Browse
+              </Link>
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {trending.map((s) => (
+                <li key={s.id}>
+                  <Link
+                    href="/suggy"
+                    className="flex items-center justify-between text-sm hover:text-white"
+                  >
+                    <span className="truncate">{s.title}</span>
+                    <span className="ml-3 shrink-0 text-xs text-zinc-500">{s.score}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div className="card p-6">New ebooks — free + paid.</div>
       </div>
 
