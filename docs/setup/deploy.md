@@ -1,6 +1,6 @@
 # Deploy & environment setup
 
-Project: **0.01%SYSTEM** · prod domain: **https://system101.network** · Supabase project ref: `geqyrbdxlqhicoytgrq`
+Project: **0.01%SYSTEM** · prod domain: **https://system101.network** · Supabase project ref: `geqyrbpdxlqhicoytgrq`
 
 ## 1. Supabase — apply schema
 
@@ -37,7 +37,7 @@ Settings → Environment Variables, for **Production** and **Preview**:
 
 | Name | Value |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://geqyrbdxlqhicoytgrq.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://geqyrbpdxlqhicoytgrq.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_...`) — server only |
 | `PAYSTACK_SECRET_KEY` | `sk_...` — server only |

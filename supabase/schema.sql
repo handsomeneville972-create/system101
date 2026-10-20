@@ -1,4 +1,4 @@
--- 0.01%SYSTEM schema (Supabase Postgres + RLS) — project geqyrbdxlqhicoytgrq
+-- 0.01%SYSTEM schema (Supabase Postgres + RLS) — project geqyrbpdxlqhicoytgrq
 -- Order: tables → helper functions → RLS → trigger → RPCs → indexes
 -- Idempotent: safe to re-run in full.
 

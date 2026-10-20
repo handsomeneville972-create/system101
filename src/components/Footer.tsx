@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Youtube, Music2, MessagesSquare, Globe } from "lucide-react";
+import { Youtube } from "lucide-react";
 
 export function Footer() {
   return (
@@ -13,15 +13,6 @@ export function Footer() {
           <a href="https://youtube.com" aria-label="YouTube" className="hover:text-white">
             <Youtube size={18} />
           </a>
-          <a href="https://tiktok.com" aria-label="TikTok" className="hover:text-white">
-            <Music2 size={18} />
-          </a>
-          <a href="https://discord.com" aria-label="Discord" className="hover:text-white">
-            <MessagesSquare size={18} />
-          </a>
-          <a href="https://reddit.com" aria-label="Reddit" className="hover:text-white">
-            <Globe size={18} />
-          </a>
         </div>
         <div className="flex gap-4">
           <a href="/apps" className="hover:text-white">Apps</a>
@@ -29,6 +20,7 @@ export function Footer() {
           <a href="/settings" className="hover:text-white">Settings</a>
         </div>
       </div>
+      <p className="pb-6 text-center text-xs text-zinc-600">From C. Levi Company</p>
     </footer>
   );
 }

@@ -15,3 +15,8 @@
 - 2026-10-17: Suggy = member-only 80% vote in-group (settle_suggy RPC) + separate global up/down table (suggy_global_votes) for published feed. Downvote requires reason, no auto-abort.
 - 2026-10-17: Signals can only be posted by the group leader and only when the group is active.
 - 2026-10-17: schema.sql reordered (tables → helper functions → RLS → trigger → RPCs → indexes) so it applies top-to-bottom in one paste without the check_function_bodies workaround. Prod domain: system101.network (Vercel).
+- 2026-10-20: Supabase ref correction — real ref is geqyrbpdxlqhicoytgrq; the long-recorded geqyrbdxlqhicoytgrq was a typo (missing p) and never existed (NXDOMAIN). Schema was already applied to the real project; publishable/secret keys validated.
+- 2026-10-20: Vercel 404 = project had only empty sourceless deployments (File tree not found). Fixed by framework=nextjs + real git deployment (dpl_5xRPXLFKvphyf4SXRzyycjD21GX2); env NEXT_PUBLIC_SITE_URL + PLATFORM_SPLIT_PERCENT added to all targets. Prod LIVE.
+- 2026-10-20: Auth URL config approach = 2A (agent PATCHes Management API with user-supplied PAT having projects_read/auth_config_read/write) instead of manual dashboard entry.
+- 2026-10-20: Auth config applied. Site URL https://system101.network; redirect allowlist includes apex, www, localhost:3000 and https://*-*.vercel.app preview wildcard.
+- 2026-10-20: End-to-end smoke test (D1 routes + D2 auth/group/invite/suggy/join flows) passed against prod via Admin API, with RLS denials confirmed; all test rows and users deleted afterwards.
