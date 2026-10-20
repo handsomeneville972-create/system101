@@ -1,10 +1,14 @@
+import Image from "next/image";
 import { Youtube, Music2, MessagesSquare, Globe } from "lucide-react";
 
 export function Footer() {
   return (
     <footer className="border-t hairline mt-16">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-zinc-400 md:flex-row md:items-center md:justify-between">
-        <p>0.01%SYSTEM · Grow</p>
+        <div className="flex items-center gap-2">
+          <Image src="/logo.png" alt="0.01%SYSTEM" width={406} height={396} className="h-5 w-auto" />
+          <span>0.01%SYSTEM · Grow</span>
+        </div>
         <div className="flex items-center gap-4">
           <a href="https://youtube.com" aria-label="YouTube" className="hover:text-white">
             <Youtube size={18} />

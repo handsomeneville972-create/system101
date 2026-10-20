@@ -1,6 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Sprout } from "lucide-react";
 import { AuthNav } from "@/components/AuthNav";
 
 const links = [
@@ -36,9 +36,14 @@ export function Navbar() {
     <header className="sticky top-0 z-40 border-b hairline bg-black/80 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black">
-            <Sprout size={18} />
-          </span>
+          <Image
+            src="/logo.png"
+            alt="0.01%SYSTEM"
+            width={406}
+            height={396}
+            className="h-8 w-auto"
+            priority
+          />
           <span className="text-sm font-semibold tracking-tight">
             0.01%SYSTEM <span className="text-zinc-400">· Grow</span>
           </span>
