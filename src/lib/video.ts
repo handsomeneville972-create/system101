@@ -8,7 +8,7 @@ export type ParsedVideo = {
   embedUrl: string;
 };
 
-function youtube(id: string, raw: string): ParsedVideo {
+function youtube(id: string): ParsedVideo {
   return {
     provider: "youtube",
     id,
@@ -32,16 +32,16 @@ export function parseVideoUrl(input: string): ParsedVideo | null {
 
   if (host === "youtu.be") {
     const id = u.pathname.split("/").filter(Boolean)[0] ?? "";
-    return ytId.test(id) ? youtube(id, input) : null;
+    return ytId.test(id) ? youtube(id) : null;
   }
 
   if (host === "youtube.com" || host === "m.youtube.com" || host === "youtube-nocookie.com") {
     if (u.pathname === "/watch") {
       const id = u.searchParams.get("v") ?? "";
-      return ytId.test(id) ? youtube(id, input) : null;
+      return ytId.test(id) ? youtube(id) : null;
     }
     const m = u.pathname.match(/^\/(?:embed|shorts)\/([A-Za-z0-9_-]{6,20})/);
-    return m ? youtube(m[1], input) : null;
+    return m ? youtube(m[1]) : null;
   }
 
   if (host === "vimeo.com" || host === "player.vimeo.com") {

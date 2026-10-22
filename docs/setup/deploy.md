@@ -13,7 +13,7 @@ select table_name from information_schema.tables where table_schema = 'public' o
 select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' order by 1;
 ```
 
-Expect 14 tables and 7 functions.
+Expect 16 tables and 10 functions.
 
 ## 2. Supabase — Authentication URLs
 
@@ -68,6 +68,7 @@ Rules:
 5. `/ebooku/upload` → signed uploads land in the private buckets → book appears on `/ebooku`; free download works; paid book shows Buy (checkout only once Paystack keys/USD are live).
 6. `/u/<id>` shows a public profile; settings avatar upload/save/remove works; member names on a group page open profiles.
 7. Leader can edit group name/rules, remove a member, and transfer leadership; non-leaders can leave. A denied applicant sees the reason + retry date and cannot re-request for 7 days.
+8. `/decourse/upload` → YouTube/Vimeo link + optional PDF notes → course appears on `/decourse`; the detail page embeds the player and the notes download redirects to a signed URL. Free course uploads work now; the $5 paid tier is not built.
 
 ## 6. Troubleshooting
 

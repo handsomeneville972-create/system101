@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Youtube } from "lucide-react";
 
 export function Footer() {
@@ -15,9 +16,9 @@ export function Footer() {
           </a>
         </div>
         <div className="flex gap-4">
-          <a href="/apps" className="hover:text-white">Apps</a>
-          <a href="/decourse" className="hover:text-white">De-Course</a>
-          <a href="/settings" className="hover:text-white">Settings</a>
+          <Link href="/apps" className="hover:text-white">Apps</Link>
+          <Link href="/decourse" className="hover:text-white">De-Course</Link>
+          <Link href="/settings" className="hover:text-white">Settings</Link>
         </div>
       </div>
       <p className="pb-6 text-center text-xs text-zinc-600">From C. Levi Company</p>
