@@ -43,7 +43,7 @@ export default function Landing() {
           <h2 className="text-lg font-medium">What you get</h2>
           <p className="mt-2 text-sm text-zinc-400">People like you. Books. Signals. Tools. Courses.</p>
         </div>
-        <div className="card p-6">
+        <div id="about" className="card p-6 scroll-mt-20">
           <h2 className="text-lg font-medium">About us</h2>
           <p className="mt-2 text-sm text-zinc-400">For dreamers. Goal-oriented. Builders only.</p>
         </div>
