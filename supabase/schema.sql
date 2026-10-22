@@ -655,3 +655,543 @@ create policy "course files delete own" on storage.objects for delete to authent
     bucket_id = 'course-files'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- =========================================================
+-- 10) Trust & membership integrity hardening
+-- =========================================================
+
+alter table public.group_invites add column if not exists accepted_by uuid
+  references public.profiles(id) on delete set null;
+alter table public.group_invites add column if not exists accepted_at timestamptz;
+
+alter table public.ebooks drop constraint if exists ebooks_file_path_owner;
+alter table public.ebooks add constraint ebooks_file_path_owner check (
+  file_path is null or uploader_id is null
+  or starts_with(file_path, uploader_id::text || '/')
+);
+
+alter table public.ebooks drop constraint if exists ebooks_cover_path_owner;
+alter table public.ebooks add constraint ebooks_cover_path_owner check (
+  cover_path is null or uploader_id is null
+  or starts_with(cover_path, uploader_id::text || '/')
+);
+
+alter table public.courses drop constraint if exists courses_pdf_path_owner;
+alter table public.courses add constraint courses_pdf_path_owner check (
+  pdf_path is null or creator_id is null
+  or starts_with(pdf_path, creator_id::text || '/')
+);
+
+alter table public.payments drop constraint if exists payments_status_check;
+alter table public.payments add constraint payments_status_check
+  check (status in ('pending','success','failed','refunded'));
+
+-- column-level write limits: governance and payout fields are server-managed
+revoke update on public.groups from anon, authenticated;
+grant update (name, rules) on public.groups to authenticated;
+
+revoke update on public.ebooks from anon, authenticated;
+grant update (title, description, author_bio, price_cents, currency, tags, status)
+  on public.ebooks to authenticated;
+
+create or replace function public.protect_ebook_subaccount()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.role() is distinct from 'service_role' then
+    if tg_op = 'INSERT' then
+      new.subaccount_code := null;
+    else
+      new.subaccount_code := old.subaccount_code;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_ebook_subaccount on public.ebooks;
+create trigger protect_ebook_subaccount
+  before insert or update on public.ebooks
+  for each row execute function public.protect_ebook_subaccount();
+
+create or replace function public.set_review_verified()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.verified_purchase := exists (
+    select 1
+    from public.payments p
+    join public.ebooks e on e.id = p.ebook_id
+    where p.ebook_id = new.ebook_id
+      and p.buyer_id = new.user_id
+      and p.status = 'success'
+      and e.uploader_id is distinct from new.user_id
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists set_review_verified on public.reviews;
+create trigger set_review_verified
+  before insert or update on public.reviews
+  for each row execute function public.set_review_verified();
+
+create or replace function public.request_to_join(p_group uuid, p_reason text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g public.groups;
+  v_reason text := btrim(coalesce(p_reason, ''));
+  v_last public.join_requests;
+  v_id uuid;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+  if char_length(v_reason) < 50 then
+    return jsonb_build_object('status', 'reason_too_short');
+  end if;
+
+  select * into g from public.groups where id = p_group;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if not g.active then return jsonb_build_object('status', 'group_not_active'); end if;
+  if exists (
+    select 1 from public.group_members where group_id = p_group and user_id = uid
+  ) then return jsonb_build_object('status', 'already_member'); end if;
+  if exists (
+    select 1 from public.join_requests
+    where group_id = p_group and user_id = uid and status = 'pending'
+  ) then return jsonb_build_object('status', 'pending'); end if;
+
+  select * into v_last from public.join_requests
+    where group_id = p_group and user_id = uid and status = 'denied'
+      and decided_at > now() - interval '7 days'
+    order by decided_at desc limit 1;
+  if found then
+    return jsonb_build_object(
+      'status', 'cooldown',
+      'retry_at', v_last.decided_at + interval '7 days'
+    );
+  end if;
+
+  begin
+    insert into public.join_requests(group_id, user_id, reason)
+      values (p_group, uid, v_reason)
+      returning id into v_id;
+  exception when unique_violation then
+    return jsonb_build_object('status', 'pending');
+  end;
+
+  return jsonb_build_object('status', 'created', 'id', v_id);
+end;
+$$;
+
+create or replace function public.cancel_join_request(p_request uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+  delete from public.join_requests
+    where id = p_request and user_id = uid and status = 'pending';
+  if not found then return jsonb_build_object('status', 'not_cancellable'); end if;
+  return jsonb_build_object('status', 'cancelled');
+end;
+$$;
+
+create or replace function public.leave_group(p_group uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g public.groups;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+  select * into g from public.groups where id = p_group for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if g.leader_id = uid then
+    return jsonb_build_object('status', 'leader_transfer_required');
+  end if;
+  delete from public.group_members where group_id = p_group and user_id = uid;
+  if not found then return jsonb_build_object('status', 'not_member'); end if;
+  return jsonb_build_object('status', 'left', 'slug', g.slug);
+end;
+$$;
+
+create or replace function public.settle_due_suggies(p_group uuid)
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  r record;
+  v_count int := 0;
+begin
+  if auth.uid() is null then return 0; end if;
+  for r in
+    select id from public.suggies
+    where group_id = p_group and status = 'voting' and decide_by <= now()
+  loop
+    perform public.settle_suggy(r.id);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+
+-- groups: leaders may only edit presentation fields (column grants above)
+drop policy if exists "groups leader update" on public.groups;
+create policy "groups leader update" on public.groups for update to authenticated
+  using ((select auth.uid()) = leader_id)
+  with check ((select auth.uid()) = leader_id);
+
+-- membership is leader-managed; leaving is the only self-service write
+drop policy if exists "members leader insert" on public.group_members;
+drop policy if exists "members leader delete" on public.group_members;
+create policy "members leader insert" on public.group_members for insert to authenticated
+  with check (public.is_group_leader(group_id, (select auth.uid())));
+create policy "members leader delete" on public.group_members for delete to authenticated
+  using (public.is_group_leader(group_id, (select auth.uid())));
+
+-- join requests only through request_to_join; voting only while pending
+drop policy if exists "join applicant insert" on public.join_requests;
+drop policy if exists "join member update" on public.join_requests;
+drop policy if exists "join read" on public.join_requests;
+create policy "join read" on public.join_requests for select to authenticated
+  using (
+    (select auth.uid()) = user_id
+    or public.is_group_member(group_id, (select auth.uid()))
+  );
+
+drop policy if exists "votes member insert" on public.request_votes;
+drop policy if exists "votes member update" on public.request_votes;
+drop policy if exists "votes read" on public.request_votes;
+create policy "votes read" on public.request_votes for select to authenticated
+  using (
+    exists (
+      select 1 from public.join_requests r
+      where r.id = request_id
+        and (r.user_id = (select auth.uid())
+          or public.is_group_member(r.group_id, (select auth.uid())))
+    )
+  );
+create policy "votes member insert" on public.request_votes for insert to authenticated
+  with check (
+    (select auth.uid()) = voter_id
+    and exists (
+      select 1 from public.join_requests r
+      where r.id = request_id
+        and r.status = 'pending'
+        and public.is_group_member(r.group_id, (select auth.uid()))
+    )
+  );
+create policy "votes member update" on public.request_votes for update to authenticated
+  using (
+    (select auth.uid()) = voter_id
+    and exists (
+      select 1 from public.join_requests r
+      where r.id = request_id and r.status = 'pending'
+    )
+  )
+  with check (
+    (select auth.uid()) = voter_id
+    and exists (
+      select 1 from public.join_requests r
+      where r.id = request_id and r.status = 'pending'
+    )
+  );
+
+create unique index if not exists uq_join_requests_pending
+  on public.join_requests(group_id, user_id) where status = 'pending';
+create index if not exists idx_group_members_user
+  on public.group_members(user_id, group_id);
+
+-- invites: single use, leader can regenerate/revoke
+drop policy if exists "invites leader insert" on public.group_invites;
+drop policy if exists "invites leader read" on public.group_invites;
+drop policy if exists "invites leader update" on public.group_invites;
+drop policy if exists "invites leader delete" on public.group_invites;
+create policy "invites leader read" on public.group_invites for select to authenticated
+  using (public.is_group_leader(group_id, (select auth.uid())));
+create policy "invites leader insert" on public.group_invites for insert to authenticated
+  with check (public.is_group_leader(group_id, (select auth.uid())));
+create policy "invites leader update" on public.group_invites for update to authenticated
+  using (public.is_group_leader(group_id, (select auth.uid())))
+  with check (public.is_group_leader(group_id, (select auth.uid())));
+create policy "invites leader delete" on public.group_invites for delete to authenticated
+  using (public.is_group_leader(group_id, (select auth.uid())));
+
+-- ebooks: owners cannot redirect payout splits or point at foreign files
+drop policy if exists "ebooks uploader insert" on public.ebooks;
+drop policy if exists "ebooks uploader update" on public.ebooks;
+create policy "ebooks uploader insert" on public.ebooks for insert to authenticated
+  with check ((select auth.uid()) = uploader_id);
+create policy "ebooks uploader update" on public.ebooks for update to authenticated
+  using ((select auth.uid()) = uploader_id)
+  with check ((select auth.uid()) = uploader_id);
+
+-- reviews: authorship + purchase verification are server-computed
+drop policy if exists "reviews read" on public.reviews;
+drop policy if exists "reviews self insert" on public.reviews;
+drop policy if exists "reviews self update" on public.reviews;
+create policy "reviews read" on public.reviews for select
+  using (
+    exists (
+      select 1 from public.ebooks e
+      where e.id = ebook_id
+        and (e.status = 'published' or e.uploader_id = (select auth.uid()))
+    )
+    or user_id = (select auth.uid())
+  );
+create policy "reviews self insert" on public.reviews for insert to authenticated
+  with check (
+    (select auth.uid()) = user_id
+    and exists (
+      select 1 from public.ebooks e
+      where e.id = ebook_id and e.status = 'published'
+    )
+  );
+create policy "reviews self update" on public.reviews for update to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+-- signals and votes are immutable after creation; outcomes via settle_suggy
+drop policy if exists "suggies leader insert" on public.suggies;
+drop policy if exists "suggies leader update" on public.suggies;
+create policy "suggies leader insert" on public.suggies for insert to authenticated
+  with check (
+    public.is_group_leader(group_id, (select auth.uid()))
+    and status = 'voting'
+    and votes_yes = 0
+    and votes_no = 0
+  );
+
+drop policy if exists "suggy_votes member insert" on public.suggy_votes;
+drop policy if exists "suggy_votes member update" on public.suggy_votes;
+create policy "suggy_votes member insert" on public.suggy_votes for insert to authenticated
+  with check (
+    (select auth.uid()) = voter_id
+    and exists (
+      select 1 from public.suggies s
+      where s.id = suggy_id
+        and s.status = 'voting'
+        and public.is_group_member(s.group_id, (select auth.uid()))
+    )
+  );
+create policy "suggy_votes member update" on public.suggy_votes for update to authenticated
+  using (
+    (select auth.uid()) = voter_id
+    and exists (select 1 from public.suggies s where s.id = suggy_id and s.status = 'voting')
+  )
+  with check (
+    (select auth.uid()) = voter_id
+    and exists (select 1 from public.suggies s where s.id = suggy_id and s.status = 'voting')
+  );
+
+-- payments: buyer or seller may read; one success per buyer/book
+drop policy if exists "payments self read" on public.payments;
+create policy "payments self read" on public.payments for select to authenticated
+  using (
+    (select auth.uid()) = buyer_id
+    or exists (
+      select 1 from public.ebooks e
+      where e.id = ebook_id and e.uploader_id = (select auth.uid())
+    )
+  );
+create unique index if not exists uq_payments_success_book_buyer
+  on public.payments(ebook_id, buyer_id) where status = 'success';
+create index if not exists idx_payments_ebook on public.payments(ebook_id, status);
+
+-- bucket limits + content immutability after upload
+update storage.buckets
+  set file_size_limit = 20971520,
+      allowed_mime_types = array['application/pdf','application/epub+zip']
+  where id in ('ebook-files','course-files');
+
+update storage.buckets
+  set file_size_limit = 2097152,
+      allowed_mime_types = array['image/jpeg','image/png','image/webp']
+  where id in ('ebook-covers','avatars');
+
+drop policy if exists "ebook files delete own" on storage.objects;
+drop policy if exists "ebook covers delete own" on storage.objects;
+create policy "ebook covers delete own" on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'ebook-covers'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "course files delete own" on storage.objects;
+
+-- =========================================================
+-- 11) hardened settlement (all-voted early, 80% of cast at deadline)
+-- =========================================================
+
+create or replace function public.settle_join_request(p_request uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  r public.join_requests;
+  v_members int;
+  v_yes int;
+  v_no int;
+  v_leader_yes boolean := false;
+  v_reason text;
+  v_all_voted boolean;
+  v_pass boolean;
+begin
+  if auth.uid() is null then return jsonb_build_object('status', 'auth_required'); end if;
+  select * into r from public.join_requests where id = p_request for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if r.status <> 'pending' then return jsonb_build_object('status', r.status); end if;
+
+  select count(*) into v_members from public.group_members where group_id = r.group_id;
+  select count(*) filter (where yes), count(*) filter (where not yes)
+    into v_yes, v_no from public.request_votes where request_id = p_request;
+  select coalesce(bool_or(vv.yes), false) into v_leader_yes
+    from public.request_votes vv
+    join public.groups g on g.id = r.group_id
+    where vv.request_id = p_request and vv.voter_id = g.leader_id;
+  select reason into v_reason from public.request_votes
+    where request_id = p_request and not yes and reason is not null
+    order by created_at desc limit 1;
+
+  v_all_voted := v_members > 0 and (v_yes + v_no) >= v_members;
+
+  if (v_yes + v_no) = 0 then
+    v_pass := false;
+  elsif v_all_voted then
+    v_pass := (v_yes::numeric / greatest(v_members, 1)) >= 0.8
+              or (v_yes = v_no and v_leader_yes);
+  elsif now() >= r.decide_by then
+    v_pass := (v_yes::numeric / (v_yes + v_no)) >= 0.8;
+  else
+    v_pass := false;
+  end if;
+
+  if v_pass then
+    insert into public.group_members(group_id, user_id, role)
+      values (r.group_id, r.user_id, 'member') on conflict do nothing;
+    update public.join_requests
+      set status = 'approved', decided_at = now(), outcome_reason = v_reason
+      where id = p_request;
+    return jsonb_build_object('status', 'approved');
+  end if;
+
+  if v_all_voted or now() >= r.decide_by then
+    update public.join_requests
+      set status = 'denied', decided_at = now(),
+          outcome_reason = coalesce(
+            v_reason,
+            case when now() >= r.decide_by
+              then 'Vote window ended without approval.'
+              else 'Not enough yes votes (80% required).'
+            end
+          )
+      where id = p_request;
+    return jsonb_build_object('status', 'denied');
+  end if;
+
+  return jsonb_build_object('status', 'pending', 'yes', v_yes, 'no', v_no);
+end;
+$$;
+
+create or replace function public.settle_suggy(p_suggy uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  s public.suggies;
+  v_members int;
+  v_up int;
+  v_down int;
+  v_leader_up boolean := false;
+  v_reason text;
+  v_all_voted boolean;
+  v_pass boolean;
+begin
+  if auth.uid() is null then return jsonb_build_object('status', 'auth_required'); end if;
+  select * into s from public.suggies where id = p_suggy for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if s.status <> 'voting' then return jsonb_build_object('status', s.status); end if;
+
+  select count(*) into v_members from public.group_members where group_id = s.group_id;
+  select count(*) filter (where up), count(*) filter (where not up)
+    into v_up, v_down from public.suggy_votes where suggy_id = p_suggy;
+  select coalesce(bool_or(vv.up), false) into v_leader_up
+    from public.suggy_votes vv
+    join public.groups g on g.id = s.group_id
+    where vv.suggy_id = p_suggy and vv.voter_id = g.leader_id;
+  select reason into v_reason from public.suggy_votes
+    where suggy_id = p_suggy and not up and reason is not null
+    order by created_at desc limit 1;
+
+  v_all_voted := v_members > 0 and (v_up + v_down) >= v_members;
+
+  if (v_up + v_down) = 0 then
+    v_pass := false;
+  elsif v_all_voted then
+    v_pass := (v_up::numeric / greatest(v_members, 1)) >= 0.8
+              or (v_up = v_down and v_leader_up);
+  elsif now() >= s.decide_by then
+    v_pass := (v_up::numeric / (v_up + v_down)) >= 0.8;
+  else
+    v_pass := false;
+  end if;
+
+  update public.suggies set votes_yes = v_up, votes_no = v_down where id = p_suggy;
+
+  if v_pass then
+    update public.suggies
+      set status = 'published', outcome_reason = v_reason
+      where id = p_suggy;
+    return jsonb_build_object('status', 'published');
+  end if;
+
+  if v_all_voted or now() >= s.decide_by then
+    update public.suggies
+      set status = 'rejected',
+          outcome_reason = coalesce(v_reason, 'Not enough yes votes (80% required).')
+      where id = p_suggy;
+    return jsonb_build_object('status', 'rejected');
+  end if;
+
+  return jsonb_build_object('status', 'voting', 'up', v_up, 'down', v_down);
+end;
+$$;
+
+-- invites are single use and can only activate through two distinct members
+create or replace function public.accept_group_invite(p_token text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  inv public.group_invites;
+  uid uuid := auth.uid();
+  g public.groups;
+  v_members int;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+  select * into inv from public.group_invites where token = p_token for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if inv.status <> 'invited' then
+    return jsonb_build_object('status', case when inv.status = 'accepted' then 'already' else 'expired' end);
+  end if;
+  if inv.expires_at is not null and now() > inv.expires_at then
+    update public.group_invites set status = 'expired' where id = inv.id;
+    return jsonb_build_object('status', 'expired');
+  end if;
+
+  select * into g from public.groups where id = inv.group_id for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if g.leader_id = uid then
+    return jsonb_build_object('status', 'leader_cannot_accept');
+  end if;
+  if g.active then return jsonb_build_object('status', 'group_active'); end if;
+  if exists (
+    select 1 from public.group_members where group_id = g.id and user_id = uid
+  ) then return jsonb_build_object('status', 'already_member'); end if;
+
+  update public.group_invites
+    set status = 'accepted', accepted_by = uid, accepted_at = now()
+    where id = inv.id;
+  insert into public.group_members(group_id, user_id, role)
+    values (g.id, uid, 'member') on conflict do nothing;
+
+  select count(*) into v_members
+    from public.group_members
+    where group_id = g.id and user_id <> g.leader_id;
+  if v_members >= 2 then
+    update public.groups set active = true where id = g.id;
+  end if;
+
+  return jsonb_build_object('status', 'accepted', 'active', v_members >= 2);
+end;
+$$;

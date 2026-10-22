@@ -15,7 +15,7 @@ export default function SignUp() {
     const { error } = await sb.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
     if (error) {

@@ -1,9 +1,11 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
+import { PROFESSIONS } from "@/lib/domain";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -29,6 +31,7 @@ export async function createGroup(_prev: FormState, formData: FormData): Promise
     .filter(Boolean);
 
   if (!name || !profession) return { error: "Name and craft are required." };
+  if (!PROFESSIONS.some((p) => p.slug === profession)) return { error: "Pick a valid craft." };
 
   let slug = slugify(name) || `group-${Date.now().toString(36)}`;
   const { data: existing } = await sb.from("groups").select("id").eq("slug", slug).maybeSingle();
@@ -63,47 +66,45 @@ export async function requestToJoin(_prev: FormState, formData: FormData): Promi
   const reason = String(formData.get("reason") ?? "").trim();
   if (reason.length < 50) return { error: "Reason must be at least 50 characters." };
 
-  const { data: member } = await sb
-    .from("group_members")
-    .select("user_id")
-    .eq("group_id", groupId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (member) return { error: "You are already a member." };
-
-  const { data: pending } = await sb
-    .from("join_requests")
-    .select("id")
-    .eq("group_id", groupId)
-    .eq("user_id", user.id)
-    .eq("status", "pending")
-    .maybeSingle();
-  if (pending) return { error: "You already have a pending request." };
-
-  const { data: denied } = await sb
-    .from("join_requests")
-    .select("decided_at, created_at")
-    .eq("group_id", groupId)
-    .eq("user_id", user.id)
-    .eq("status", "denied")
-    .order("decided_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (denied) {
-    const base = new Date((denied.decided_at ?? denied.created_at) as string);
-    const retry = new Date(base.getTime() + 7 * 24 * 60 * 60 * 1000);
-    if (retry > new Date()) {
-      return {
-        error: `You were not approved recently. You can request again on ${retry
-          .toISOString()
-          .slice(0, 10)}.`,
-      };
-    }
-  }
-
-  const { error } = await sb.from("join_requests").insert({ group_id: groupId, user_id: user.id, reason });
+  const { data, error } = await sb.rpc("request_to_join", {
+    p_group: groupId,
+    p_reason: reason,
+  });
   if (error) return { error: error.message };
+  const result = data as { status?: string; retry_at?: string } | null;
+
+  if (result?.status === "cooldown") {
+    const retry = result.retry_at ? new Date(result.retry_at) : null;
+    return {
+      error: `You were not approved recently. You can request again on ${
+        retry ? retry.toISOString().slice(0, 10) : "a later date"
+      }.`,
+    };
+  }
+  if (result?.status === "already_member") return { error: "You are already a member." };
+  if (result?.status === "pending") return { error: "You already have a pending request." };
+  if (result?.status === "group_not_active") return { error: "This group is not accepting requests yet." };
+  if (result?.status === "not_found") return { error: "Group not found." };
+  if (result?.status !== "created") return { error: "Could not send request." };
+
+  revalidatePath(`/groups/${slug}`);
+  return { ok: true };
+}
+
+export async function cancelJoinRequest(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const sb = await supabaseServer();
+
+  const requestId = String(formData.get("request_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  if (!requestId) return { error: "Missing request." };
+
+  const { data, error } = await sb.rpc("cancel_join_request", { p_request: requestId });
+  if (error) return { error: error.message };
+  if ((data as { status?: string } | null)?.status !== "cancelled") {
+    return { error: "Could not cancel request." };
+  }
 
   revalidatePath(`/groups/${slug}`);
   return { ok: true };
@@ -135,12 +136,74 @@ export async function acceptInvite(formData: FormData) {
   if (!user) redirect(`/auth/sign-in?next=${encodeURIComponent(`/groups/join?token=${token}`)}`);
 
   const sb = await supabaseServer();
+  const { data: info } = await sb.rpc("join_invite_info", { p_token: token });
+  const slug = (info as { group_slug?: string } | null)?.group_slug;
+
   const { data } = await sb.rpc("accept_group_invite", { p_token: token });
   const result = data as { status?: string } | null;
-  if (result?.status === "not_found" || result?.status === "expired") {
-    redirect(`/groups/join?token=${token}&error=1`);
+
+  if (result?.status === "accepted") redirect(slug ? `/groups/${slug}` : "/home");
+  if (result?.status === "already_member") redirect(slug ? `/groups/${slug}` : "/home");
+  if (result?.status === "already") {
+    redirect(slug ? `/groups/${slug}?invite=used` : "/groups/join?error=used");
   }
-  redirect("/home");
+  if (result?.status === "leader_cannot_accept") redirect(slug ? `/groups/${slug}` : "/home");
+  redirect(`/groups/join?token=${token}&error=1`);
+}
+
+export async function regenerateInvite(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const sb = await supabaseServer();
+
+  const inviteId = String(formData.get("invite_id") ?? "");
+  const groupId = String(formData.get("group_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  if (!inviteId || !groupId) return { error: "Missing invite." };
+
+  const token = randomUUID().replace(/-/g, "");
+  const { data, error } = await sb
+    .from("group_invites")
+    .update({
+      token,
+      status: "invited",
+      expires_at: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+      accepted_by: null,
+      accepted_at: null,
+    })
+    .eq("id", inviteId)
+    .eq("group_id", groupId)
+    .select("id")
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) return { error: "Could not regenerate invite." };
+
+  revalidatePath(`/groups/${slug}`);
+  return { ok: true };
+}
+
+export async function revokeInvite(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const sb = await supabaseServer();
+
+  const inviteId = String(formData.get("invite_id") ?? "");
+  const groupId = String(formData.get("group_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  if (!inviteId || !groupId) return { error: "Missing invite." };
+
+  const { data, error } = await sb
+    .from("group_invites")
+    .delete()
+    .eq("id", inviteId)
+    .eq("group_id", groupId)
+    .select("id")
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) return { error: "Could not revoke invite." };
+
+  revalidatePath(`/groups/${slug}`);
+  return { ok: true };
 }
 
 export async function updateGroup(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -235,24 +298,19 @@ export async function leaveGroup(_prev: FormState, formData: FormData): Promise<
   const sb = await supabaseServer();
 
   const groupId = String(formData.get("group_id") ?? "");
-  const { data: group } = await sb
-    .from("groups")
-    .select("leader_id, slug")
-    .eq("id", groupId)
-    .maybeSingle();
-  if (!group) return { error: "Group not found." };
-  if (group.leader_id === user.id) {
+  if (!groupId) return { error: "Missing group." };
+
+  const { data, error } = await sb.rpc("leave_group", { p_group: groupId });
+  if (error) return { error: error.message };
+  const result = data as { status?: string; slug?: string } | null;
+
+  if (result?.status === "leader_transfer_required") {
     return { error: "Transfer leadership before leaving." };
   }
-
-  const { error } = await sb
-    .from("group_members")
-    .delete()
-    .eq("group_id", groupId)
-    .eq("user_id", user.id);
-  if (error) return { error: error.message };
+  if (result?.status === "not_member") return { error: "You are not a member." };
+  if (result?.status !== "left") return { error: "Could not leave group." };
 
   revalidatePath("/home");
-  revalidatePath(`/groups/${group.slug}`);
+  if (result.slug) revalidatePath(`/groups/${result.slug}`);
   redirect("/home");
 }

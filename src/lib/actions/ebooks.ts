@@ -157,21 +157,12 @@ export async function createReview(prev: FormState, formData: FormData): Promise
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) return { error: "Rating must be 1–5." };
 
   const sb = await supabaseServer();
-  const { data: pay } = await sb
-    .from("payments")
-    .select("id")
-    .eq("ebook_id", ebookId)
-    .eq("buyer_id", user.id)
-    .eq("status", "success")
-    .maybeSingle();
-
   const { error } = await sb.from("reviews").upsert(
     {
       ebook_id: ebookId,
       user_id: user.id,
       rating,
       body: body || null,
-      verified_purchase: !!pay,
     },
     { onConflict: "ebook_id,user_id" }
   );

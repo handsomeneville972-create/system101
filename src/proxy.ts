@@ -4,7 +4,6 @@ import { NextResponse, type NextRequest } from "next/server";
 const PROTECTED = [
   "/home",
   "/groups/new",
-  "/groups/join",
   "/onboarding",
   "/settings",
   "/ebooku/upload",
@@ -39,7 +38,8 @@ export async function proxy(request: NextRequest) {
   if (!user && PROTECTED.some((p) => path === p || path.startsWith(`${p}/`))) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/sign-in";
-    url.searchParams.set("next", path);
+    url.search = "";
+    url.searchParams.set("next", `${path}${request.nextUrl.search}`);
     return NextResponse.redirect(url);
   }
 

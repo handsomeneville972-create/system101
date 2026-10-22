@@ -8,6 +8,8 @@ type ChargeData = {
   currency?: string;
   customer?: { email?: string };
   metadata?: Record<string, unknown>;
+  transaction?: { reference?: string };
+  transaction_reference?: string;
 };
 
 export async function POST(req: Request) {
@@ -17,44 +19,58 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  const event = JSON.parse(raw) as { event: string; data: ChargeData };
+  let event: { event: string; data: ChargeData };
+  try {
+    event = JSON.parse(raw);
+  } catch {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
   const admin = supabaseAdmin();
+  const d = event.data ?? {};
+  const reference = String(d.reference ?? "");
 
   switch (event.event) {
     case "charge.success": {
-      const d = event.data;
-      const reference = String(d.reference ?? "");
       const amount = Number(d.amount ?? 0);
       const currency = String(d.currency ?? "");
+
+      const { data: payment, error: payError } = await admin
+        .from("payments")
+        .select("id,amount_cents,currency,status")
+        .eq("reference", reference)
+        .maybeSingle();
+      if (payError) return NextResponse.json({ error: "Database error" }, { status: 500 });
+
+      if (payment) {
+        if (payment.status === "success") break;
+        if (payment.status !== "pending") break;
+        if (
+          currency !== "USD" ||
+          currency !== payment.currency ||
+          amount !== payment.amount_cents
+        ) {
+          break;
+        }
+        const { error } = await admin
+          .from("payments")
+          .update({ status: "success" })
+          .eq("id", payment.id)
+          .eq("status", "pending");
+        if (error) {
+          if (error.code === "23505") {
+            await admin.from("payments").update({ status: "failed" }).eq("id", payment.id);
+            break;
+          }
+          return NextResponse.json({ error: "Database error" }, { status: 500 });
+        }
+        break;
+      }
+
       const meta = d.metadata ?? {};
-      const kind = String(meta.kind ?? "");
-
-      if (!reference || currency !== "USD") break;
-
-      if (kind === "ebook") {
-        const ebookId = String(meta.ebook_id ?? "");
-        const buyerId = String(meta.buyer_id ?? "");
-        const { data: ebook } = await admin
-          .from("ebooks")
-          .select("price_cents")
-          .eq("id", ebookId)
-          .maybeSingle();
-
-        if (!ebook || !buyerId || amount < Number(ebook.price_cents ?? 0)) break;
-
-        await admin.from("payments").upsert(
-          {
-            reference,
-            ebook_id: ebookId,
-            buyer_id: buyerId,
-            amount_cents: amount,
-            currency,
-            status: "success",
-          },
-          { onConflict: "reference" }
-        );
-      } else if (kind === "donation") {
-        await admin.from("donations").upsert(
+      if (String(meta.kind ?? "") === "donation") {
+        if (!reference || currency !== "USD" || amount < 200) break;
+        const { error } = await admin.from("donations").upsert(
           {
             reference,
             amount_cents: amount,
@@ -64,7 +80,31 @@ export async function POST(req: Request) {
           },
           { onConflict: "reference" }
         );
+        if (error) return NextResponse.json({ error: "Database error" }, { status: 500 });
       }
+      break;
+    }
+    case "charge.failed": {
+      if (!reference) break;
+      const { error } = await admin
+        .from("payments")
+        .update({ status: "failed" })
+        .eq("reference", reference)
+        .eq("status", "pending");
+      if (error) return NextResponse.json({ error: "Database error" }, { status: 500 });
+      break;
+    }
+    case "charge.refunded":
+    case "refund.processed": {
+      const refundRef =
+        reference || String(d.transaction?.reference ?? d.transaction_reference ?? "");
+      if (!refundRef) break;
+      const { error } = await admin
+        .from("payments")
+        .update({ status: "refunded" })
+        .eq("reference", refundRef)
+        .eq("status", "success");
+      if (error) return NextResponse.json({ error: "Database error" }, { status: 500 });
       break;
     }
     case "transfer.success":

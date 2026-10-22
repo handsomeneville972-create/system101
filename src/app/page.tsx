@@ -2,6 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { Users, BookOpen, Lightbulb, AppWindow, GraduationCap } from "lucide-react";
 import { DonateButton } from "@/components/DonateButton";
+import { getUser } from "@/lib/auth";
+
+export const instant = false;
 
 const features = [
   { icon: Users, title: "Find'em", desc: "Groups by craft. Apply. Vote. Belong." },
@@ -11,7 +14,8 @@ const features = [
   { icon: GraduationCap, title: "De-Course", desc: "Free courses. Video + notes." },
 ];
 
-export default function Landing() {
+export default async function Landing() {
+  const user = await getUser();
   return (
     <div className="mx-auto max-w-6xl px-4">
       <section className="py-20 text-center">
@@ -22,7 +26,10 @@ export default function Landing() {
           For those who aspire. Build something great. Find your people.
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
-          <Link href="/auth/sign-up" className="btn-pill bg-white px-6 py-3 text-sm font-medium text-black">
+          <Link
+            href={user ? "/home" : "/auth/sign-up"}
+            className="btn-pill bg-white px-6 py-3 text-sm font-medium text-black"
+          >
             Start
           </Link>
           <Link href="/findem" className="btn-pill border hairline px-6 py-3 text-sm text-zinc-200">

@@ -110,7 +110,7 @@ export async function ebookDetail(id: string): Promise<EbookDetail | null> {
   const { data } = await sb
     .from("ebooks")
     .select(
-      "id,title,description,author_bio,price_cents,currency,tags,cover_path,file_path,uploader_id,status,created_at,profiles(display_name),reviews(id,rating,body,verified_purchase,created_at,user_id,profiles(display_name))"
+      "id,title,description,author_bio,price_cents,currency,tags,cover_path,uploader_id,status,created_at,profiles(display_name),reviews(id,rating,body,verified_purchase,created_at,user_id,profiles(display_name))"
     )
     .eq("id", id)
     .maybeSingle();

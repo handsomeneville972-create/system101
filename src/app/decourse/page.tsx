@@ -31,7 +31,7 @@ export default async function DeCourse() {
       </div>
 
       <p className="mt-6 text-xs text-zinc-500">
-        Uploads are free. Paid course uploads ($5) unlock with USD payments.
+        Free to teach. Free to learn.
       </p>
     </div>
   );

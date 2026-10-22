@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { DonateButton } from "@/components/DonateButton";
 import { getProfile } from "@/lib/auth";
 import { donateVisible } from "@/lib/donate";
@@ -15,6 +16,8 @@ export default async function HomePage() {
     trendingSignals(),
     recentEbooks(3),
   ]);
+
+  if (!profile?.profession) redirect("/onboarding");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">

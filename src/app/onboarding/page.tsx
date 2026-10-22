@@ -1,7 +1,23 @@
+import { redirect } from "next/navigation";
 import { PROFESSIONS } from "@/lib/domain";
 import { completeOnboarding } from "@/lib/actions/auth";
+import { getUser } from "@/lib/auth";
+import { supabaseServer } from "@/lib/supabase-server";
 
-export default function Onboarding() {
+export const instant = false;
+
+export default async function Onboarding() {
+  const user = await getUser();
+  if (!user) redirect("/auth/sign-in?next=/onboarding");
+
+  const sb = await supabaseServer();
+  const { data: profile } = await sb
+    .from("profiles")
+    .select("display_name, profession, goals")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.profession) redirect("/home");
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Onboarding</h1>
@@ -10,13 +26,14 @@ export default function Onboarding() {
         <input
           name="display_name"
           required
+          defaultValue={profile?.display_name ?? ""}
           placeholder="Display name"
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
         />
         <select
           name="profession"
           required
-          defaultValue=""
+          defaultValue={profile?.profession ?? ""}
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
         >
           <option value="" disabled>
@@ -30,6 +47,7 @@ export default function Onboarding() {
         </select>
         <textarea
           name="goals"
+          defaultValue={profile?.goals ?? ""}
           placeholder="Goals (1 line)"
           rows={2}
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"

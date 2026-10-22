@@ -9,6 +9,7 @@ import { InviteLinks } from "@/components/groups/InviteLinks";
 import { GroupSettings } from "@/components/groups/GroupSettings";
 import { GroupMembers } from "@/components/groups/GroupMembers";
 import { LeaveGroup } from "@/components/groups/LeaveGroup";
+import { CancelJoinRequest } from "@/components/groups/CancelJoinRequest";
 import { CreateSuggyForm } from "@/components/suggy/CreateSuggyForm";
 import { SuggyVotePanel } from "@/components/suggy/SuggyVotePanel";
 
@@ -50,10 +51,10 @@ export default async function GroupPage({
       {created && group.isLeader && (
         <div className="card mt-6 p-6">
           <p className="text-sm text-zinc-300">
-            Group created. Share these invites — 2 accepted activates the group.
+            Group created. Share these invites — 2 members joining activates the group.
           </p>
           <div className="mt-4">
-            <InviteLinks invites={group.invites} />
+            <InviteLinks invites={group.invites} groupId={group.id} slug={group.slug} />
           </div>
         </div>
       )}
@@ -71,7 +72,7 @@ export default async function GroupPage({
             <div className="card p-6">
               <h2 className="text-sm font-medium">Invites</h2>
               <div className="mt-3">
-                <InviteLinks invites={group.invites} />
+                <InviteLinks invites={group.invites} groupId={group.id} slug={group.slug} />
               </div>
             </div>
           )}
@@ -128,6 +129,7 @@ export default async function GroupPage({
       ) : group.pendingRequest ? (
         <div className="card mt-6 p-6 text-sm text-zinc-300">
           Your request is pending. Members vote. 80% yes within 48h.
+          <CancelJoinRequest requestId={group.pendingRequest.id} slug={group.slug} />
         </div>
       ) : group.lastDenied ? (
         <div className="mt-6 space-y-4">
@@ -149,8 +151,12 @@ export default async function GroupPage({
             <JoinRequestForm groupId={group.id} slug={group.slug} />
           )}
         </div>
-      ) : user ? (
+      ) : user && group.active ? (
         <JoinRequestForm groupId={group.id} slug={group.slug} />
+      ) : user ? (
+        <div className="card mt-6 p-6 text-sm text-zinc-400">
+          This group is still forming. Invites activate it.
+        </div>
       ) : (
         <div className="card mt-6 p-6">
           <p className="text-sm text-zinc-400">Sign in to request to join.</p>

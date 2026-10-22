@@ -14,7 +14,7 @@ export type GroupRow = {
 
 export async function professionCounts(): Promise<Record<string, number>> {
   const sb = supabasePublic();
-  const { data } = await sb.from("groups").select("profession").eq("active", true);
+  const { data } = await sb.from("groups").select("profession");
   const counts: Record<string, number> = {};
   (data ?? []).forEach((g: { profession: string }) => {
     counts[g.profession] = (counts[g.profession] ?? 0) + 1;
@@ -54,7 +54,13 @@ export type GroupDetail = {
   active: boolean;
   leader_id: string | null;
   members: { user_id: string; role: string; display_name: string | null }[];
-  invites: { token: string; email: string | null; status: string }[];
+  invites: {
+    id: string;
+    token: string;
+    email: string | null;
+    status: string;
+    expires_at: string | null;
+  }[];
   isMember: boolean;
   isLeader: boolean;
   pendingRequest: { id: string; reason: string } | null;
@@ -103,12 +109,17 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   const isMember = !!user && memberList.some((m) => m.user_id === user.id);
   const isLeader = !!user && group.leader_id === user.id;
 
+  if (isMember) {
+    await sb.rpc("settle_due_suggies", { p_group: group.id });
+  }
+
   let invites: GroupDetail["invites"] = [];
   if (isLeader) {
     const { data: inv } = await sb
       .from("group_invites")
-      .select("token, email, status")
-      .eq("group_id", group.id);
+      .select("id, token, email, status, expires_at")
+      .eq("group_id", group.id)
+      .order("created_at");
     invites = (inv ?? []) as GroupDetail["invites"];
   }
 

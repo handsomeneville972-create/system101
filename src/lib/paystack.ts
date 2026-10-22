@@ -5,6 +5,8 @@ const PAYSTACK_BASE = "https://api.paystack.co";
 export type InitInput = {
   email: string;
   amountUsd: number;
+  amountCents?: number;
+  reference?: string;
   callbackUrl?: string;
   subaccount?: string;
   metadata?: Record<string, unknown>;
@@ -25,8 +27,9 @@ export async function initTransaction(input: InitInput) {
     },
     body: JSON.stringify({
       email: input.email,
-      amount: toCents(input.amountUsd),
+      amount: input.amountCents ?? toCents(input.amountUsd),
       currency: "USD",
+      reference: input.reference,
       callback_url: input.callbackUrl,
       subaccount: input.subaccount,
       metadata: input.metadata,

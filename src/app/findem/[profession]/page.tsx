@@ -19,7 +19,7 @@ export default async function ProfessionPage({
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="text-2xl font-semibold">{meta.label}</h1>
       <p className="mt-1 text-sm text-zinc-400">
-        Groups · Enter with reason + vote · Or create (needs 2 invites).
+        Groups · Enter with reason + vote · Or create (needs 2 members).
       </p>
       <div className="mt-6 flex gap-3">
         <Link href="/groups/new" className="btn-pill bg-white px-5 py-2.5 text-sm text-black">
