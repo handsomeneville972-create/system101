@@ -66,6 +66,8 @@ Rules:
 3. Join request → members vote yes → applicant becomes a member (80% + 48h + leader tie-break).
 4. Leader posts a signal; members vote → appears on `/suggy`.
 5. `/ebooku/upload` → signed uploads land in the private buckets → book appears on `/ebooku`; free download works; paid book shows Buy (checkout only once Paystack keys/USD are live).
+6. `/u/<id>` shows a public profile; settings avatar upload/save/remove works; member names on a group page open profiles.
+7. Leader can edit group name/rules, remove a member, and transfer leadership; non-leaders can leave. A denied applicant sees the reason + retry date and cannot re-request for 7 days.
 
 ## 6. Troubleshooting
 
