@@ -8,7 +8,7 @@ const features = [
   { icon: BookOpen, title: "Ebooku", desc: "Upload books. Free or paid. Reviews." },
   { icon: Lightbulb, title: "Suggy", desc: "Group signals. Upvote. Ship." },
   { icon: AppWindow, title: "System Apps", desc: "Windows + Mac. Coming soon." },
-  { icon: GraduationCap, title: "De-Course", desc: "Free + valuable courses. Soon." },
+  { icon: GraduationCap, title: "De-Course", desc: "Free courses. Video + notes." },
 ];
 
 export default function Landing() {

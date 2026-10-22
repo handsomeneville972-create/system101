@@ -1,7 +1,15 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED = ["/home", "/groups/new", "/groups/join", "/onboarding", "/settings", "/ebooku/upload"];
+const PROTECTED = [
+  "/home",
+  "/groups/new",
+  "/groups/join",
+  "/onboarding",
+  "/settings",
+  "/ebooku/upload",
+  "/decourse/upload",
+];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

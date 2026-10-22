@@ -595,3 +595,63 @@ create policy "avatars delete own" on storage.objects for delete to authenticate
     bucket_id = 'avatars'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- =========================================================
+-- 9) De-Course — video links + PDF resources
+-- =========================================================
+
+create table if not exists public.courses (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text not null,
+  level text not null default 'beginner'
+    check (level in ('beginner','intermediate','advanced')),
+  video_provider text not null check (video_provider in ('youtube','vimeo')),
+  video_id text not null,
+  video_hash text,
+  video_url text not null,
+  pdf_path text,
+  tags text[],
+  status text default 'published' check (status in ('published','removed')),
+  creator_id uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now()
+);
+
+alter table public.courses enable row level security;
+drop policy if exists "courses read" on public.courses;
+drop policy if exists "courses creator insert" on public.courses;
+drop policy if exists "courses creator update" on public.courses;
+create policy "courses read" on public.courses for select
+  using (status = 'published' or auth.uid() = creator_id);
+create policy "courses creator insert" on public.courses for insert
+  with check (auth.uid() = creator_id);
+create policy "courses creator update" on public.courses for update
+  using (auth.uid() = creator_id);
+
+create index if not exists idx_courses_status on public.courses(status);
+create index if not exists idx_courses_creator on public.courses(creator_id);
+
+insert into storage.buckets (id, name, public)
+values ('course-files','course-files',false)
+on conflict (id) do nothing;
+
+drop policy if exists "course files upload own" on storage.objects;
+create policy "course files upload own" on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'course-files'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "course files update own" on storage.objects;
+create policy "course files update own" on storage.objects for update to authenticated
+  using (
+    bucket_id = 'course-files'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "course files delete own" on storage.objects;
+create policy "course files delete own" on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'course-files'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
