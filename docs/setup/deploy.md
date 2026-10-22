@@ -56,6 +56,8 @@ Rules:
 - Settings → API & Webhooks → Webhook URL: `https://system101.network/api/webhooks/paystack`
 - Confirm USD is enabled on the account (min charge $2.00, paid ebook floor $2.99).
 - Webhooks cannot reach localhost; use a tunnel (e.g. ngrok) for local testing.
+- `charge.success` persists ebooks sales to `payments` and donations to `donations`, idempotently by `reference`; ebook amount/currency are checked against the DB row before writing.
+- Paid ebook checkout needs `PAYSTACK_SECRET_KEY` + USD enabled; until then the Buy button returns a checkout error.
 
 ## 5. Verification checklist
 
@@ -63,6 +65,7 @@ Rules:
 2. Create a group at `/groups/new`; copy invite link; second account accepts it → group becomes `active`.
 3. Join request → members vote yes → applicant becomes a member (80% + 48h + leader tie-break).
 4. Leader posts a signal; members vote → appears on `/suggy`.
+5. `/ebooku/upload` → signed uploads land in the private buckets → book appears on `/ebooku`; free download works; paid book shows Buy (checkout only once Paystack keys/USD are live).
 
 ## 6. Troubleshooting
 

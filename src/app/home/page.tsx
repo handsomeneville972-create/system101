@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { DonateButton } from "@/components/DonateButton";
 import { getProfile } from "@/lib/auth";
+import { donateVisible } from "@/lib/donate";
 import { myGroups } from "@/lib/data/groups";
 import { trendingSignals } from "@/lib/data/suggy";
+import { recentEbooks } from "@/lib/data/ebooks";
 
 export const instant = false;
 
 export default async function HomePage() {
-  const [profile, groups, trending] = await Promise.all([
+  const [profile, groups, trending, ebooks] = await Promise.all([
     getProfile(),
     myGroups(),
     trendingSignals(),
+    recentEbooks(3),
   ]);
 
   return (
@@ -75,12 +78,43 @@ export default async function HomePage() {
             </ul>
           )}
         </div>
-        <div className="card p-6">New ebooks — free + paid.</div>
+        <div className="card p-6">
+          <h2 className="text-sm font-medium">New ebooks</h2>
+          {ebooks.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">
+              No books yet.{" "}
+              <Link href="/ebooku/upload" className="text-zinc-200 underline">
+                Upload one
+              </Link>
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {ebooks.map((b) => (
+                <li key={b.id}>
+                  <Link
+                    href={`/ebooku/${b.id}`}
+                    className="flex items-center justify-between text-sm hover:text-white"
+                  >
+                    <span className="truncate">{b.title}</span>
+                    <span className="ml-3 shrink-0 text-xs text-zinc-500">
+                      {b.price_cents === 0 ? "Free" : `$${(b.price_cents / 100).toFixed(2)}`}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Link href="/ebooku" className="mt-3 inline-block text-xs text-zinc-500 underline">
+            All books
+          </Link>
+        </div>
       </div>
 
-      <div className="mt-6">
-        <DonateButton surface="home" />
-      </div>
+      {donateVisible(profile, "home") && (
+        <div className="mt-6">
+          <DonateButton surface="home" />
+        </div>
+      )}
     </div>
   );
 }

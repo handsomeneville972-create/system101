@@ -20,3 +20,7 @@
 - 2026-10-20: Auth URL config approach = 2A (agent PATCHes Management API with user-supplied PAT having projects_read/auth_config_read/write) instead of manual dashboard entry.
 - 2026-10-20: Auth config applied. Site URL https://system101.network; redirect allowlist includes apex, www, localhost:3000 and https://*-*.vercel.app preview wildcard.
 - 2026-10-20: End-to-end smoke test (D1 routes + D2 auth/group/invite/suggy/join flows) passed against prod via Admin API, with RLS denials confirmed; all test rows and users deleted afterwards.
+- 2026-10-22: Ebooku uploads = browser → Storage via server-issued signed upload URLs (`createSignedUploadUrl`), because Vercel caps request bodies at 4.5MB and books go to 20MB. Both buckets private (`ebook-files`, `ebook-covers`); covers batch-signed 1h TTL; downloads are `GET /ebooku/[id]/download` → 302 to a 5-min signed URL. Route keys are ids, not slugs.
+- 2026-10-22: Paid listings allowed now (webhook persists `payments` idempotently by unique `reference`, amount/currency checked against DB). Seller 90% is recorded as an outstanding balance and paid manually for now; switch to subaccount splits once Paystack USD is activated.
+- 2026-10-22: Listing removal is a soft delete (`status='removed'`, uploader-only). Download entitlement = free, paid+success payment, or uploader; anonymous free downloads allowed. Reviews are one per user per book (upsert), `verified_purchase` computed server-side from payments.
+- 2026-10-22: `metadataBase` now comes from `NEXT_PUBLIC_SITE_URL` (removes Next social-image warning).

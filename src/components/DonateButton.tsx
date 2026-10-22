@@ -1,8 +1,9 @@
 "use client";
 
 import { Heart } from "lucide-react";
+import type { DonateSurface } from "@/lib/donate";
 
-export type DonateSurface = "home" | "ebooku" | "suggy" | "apps";
+export type { DonateSurface };
 
 export function DonateButton({ surface }: { surface: DonateSurface }) {
   async function donate() {

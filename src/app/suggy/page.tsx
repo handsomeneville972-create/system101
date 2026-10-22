@@ -2,12 +2,13 @@ import Link from "next/link";
 import { DonateButton } from "@/components/DonateButton";
 import { SuggyCard } from "@/components/suggy/SuggyCard";
 import { publishedFeed } from "@/lib/data/suggy";
-import { getUser } from "@/lib/auth";
+import { getProfile } from "@/lib/auth";
+import { donateVisible } from "@/lib/donate";
 
 export const instant = false;
 
 export default async function Suggy() {
-  const [feed, user] = await Promise.all([publishedFeed(), getUser()]);
+  const [feed, profile] = await Promise.all([publishedFeed(), getProfile()]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -16,7 +17,7 @@ export default async function Suggy() {
         Group signals. Up or down only. 80% to pass in-group.
       </p>
 
-      {!user && (
+      {!profile && (
         <div className="card mt-6 flex items-center justify-between p-4">
           <p className="text-sm text-zinc-400">Sign in to up/down signals.</p>
           <Link
@@ -39,9 +40,11 @@ export default async function Suggy() {
         ))}
       </div>
 
-      <div className="mt-6">
-        <DonateButton surface="suggy" />
-      </div>
+      {donateVisible(profile, "suggy") && (
+        <div className="mt-6">
+          <DonateButton surface="suggy" />
+        </div>
+      )}
     </div>
   );
 }

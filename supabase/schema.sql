@@ -460,3 +460,43 @@ create index if not exists idx_reviews_ebook on public.reviews(ebook_id);
 create index if not exists idx_payments_buyer on public.payments(buyer_id);
 create index if not exists idx_group_invites_group on public.group_invites(group_id, status);
 create index if not exists idx_global_votes_suggy on public.suggy_global_votes(suggy_id, up);
+
+-- =========================================================
+-- 7) P3 — Ebooku, settings, notify
+-- =========================================================
+
+alter table public.profiles
+  add column if not exists donate_surfaces jsonb not null
+  default '{"home":true,"ebooku":true,"suggy":true,"apps":true}'::jsonb;
+
+create table if not exists public.notify_requests (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  surface text not null check (surface in ('apps','decourse')),
+  created_at timestamptz default now(),
+  unique (email, surface)
+);
+
+alter table public.notify_requests enable row level security;
+
+create index if not exists idx_ebooks_uploader on public.ebooks(uploader_id);
+create index if not exists idx_notify_requests_surface on public.notify_requests(surface);
+
+-- Storage: private buckets, uploads only to own folder
+insert into storage.buckets (id, name, public)
+values ('ebook-files','ebook-files',false), ('ebook-covers','ebook-covers',false)
+on conflict (id) do nothing;
+
+drop policy if exists "ebook files upload own" on storage.objects;
+create policy "ebook files upload own" on storage.objects for insert to authenticated
+  with check (
+    bucket_id in ('ebook-files','ebook-covers')
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "ebook files delete own" on storage.objects;
+create policy "ebook files delete own" on storage.objects for delete to authenticated
+  using (
+    bucket_id in ('ebook-files','ebook-covers')
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
