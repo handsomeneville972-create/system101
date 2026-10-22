@@ -71,6 +71,37 @@ export async function requestToJoin(_prev: FormState, formData: FormData): Promi
     .maybeSingle();
   if (member) return { error: "You are already a member." };
 
+  const { data: pending } = await sb
+    .from("join_requests")
+    .select("id")
+    .eq("group_id", groupId)
+    .eq("user_id", user.id)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (pending) return { error: "You already have a pending request." };
+
+  const { data: denied } = await sb
+    .from("join_requests")
+    .select("decided_at, created_at")
+    .eq("group_id", groupId)
+    .eq("user_id", user.id)
+    .eq("status", "denied")
+    .order("decided_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (denied) {
+    const base = new Date((denied.decided_at ?? denied.created_at) as string);
+    const retry = new Date(base.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (retry > new Date()) {
+      return {
+        error: `You were not approved recently. You can request again on ${retry
+          .toISOString()
+          .slice(0, 10)}.`,
+      };
+    }
+  }
+
   const { error } = await sb.from("join_requests").insert({ group_id: groupId, user_id: user.id, reason });
   if (error) return { error: error.message };
 
@@ -112,11 +143,116 @@ export async function acceptInvite(formData: FormData) {
   redirect("/home");
 }
 
-export async function leaveGroup(formData: FormData) {
+export async function updateGroup(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
-  if (!user) return;
+  if (!user) return { error: "Please sign in." };
   const sb = await supabaseServer();
-  const groupId = String(formData.get("group_id"));
-  await sb.from("group_members").delete().eq("group_id", groupId).eq("user_id", user.id);
+
+  const groupId = String(formData.get("group_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const rules = String(formData.get("rules") ?? "").trim();
+
+  if (!name) return { error: "Name is required." };
+  if (name.length > 80) return { error: "Name is too long." };
+  if (rules.length > 2000) return { error: "Rules are too long." };
+
+  const { data: group } = await sb
+    .from("groups")
+    .select("leader_id")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group || group.leader_id !== user.id) return { error: "Leader only." };
+
+  const { error } = await sb
+    .from("groups")
+    .update({ name, rules: rules || null })
+    .eq("id", groupId)
+    .eq("leader_id", user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/groups/${slug}`);
+  revalidatePath("/findem");
+  return { ok: true };
+}
+
+export async function removeMember(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const sb = await supabaseServer();
+
+  const groupId = String(formData.get("group_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const target = String(formData.get("user_id") ?? "");
+  if (!target || target === user.id) return { error: "You cannot remove yourself." };
+
+  const { data: group } = await sb
+    .from("groups")
+    .select("leader_id")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group || group.leader_id !== user.id) return { error: "Leader only." };
+
+  const { error } = await sb
+    .from("group_members")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("user_id", target);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/groups/${slug}`);
+  return { ok: true };
+}
+
+export async function transferLeader(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const sb = await supabaseServer();
+
+  const groupId = String(formData.get("group_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const target = String(formData.get("user_id") ?? "");
+  if (!target) return { error: "Pick a member." };
+
+  const { data } = await sb.rpc("transfer_group_leadership", {
+    p_group: groupId,
+    p_new_leader: target,
+  });
+  const status = (data as { status?: string } | null)?.status;
+
+  if (status === "not_member") return { error: "That person is not a member." };
+  if (status === "same") return { error: "You are already leader." };
+  if (status !== "transferred") return { error: "Could not transfer leadership." };
+
+  revalidatePath(`/groups/${slug}`);
   revalidatePath("/home");
+  return { ok: true };
+}
+
+export async function leaveGroup(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const sb = await supabaseServer();
+
+  const groupId = String(formData.get("group_id") ?? "");
+  const { data: group } = await sb
+    .from("groups")
+    .select("leader_id, slug")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group) return { error: "Group not found." };
+  if (group.leader_id === user.id) {
+    return { error: "Transfer leadership before leaving." };
+  }
+
+  const { error } = await sb
+    .from("group_members")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("user_id", user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/home");
+  revalidatePath(`/groups/${group.slug}`);
+  redirect("/home");
 }

@@ -29,7 +29,7 @@ export async function AuthNav() {
   return (
     <>
       <Link
-        href="/home"
+        href={`/u/${user.id}`}
         className="flex items-center gap-2 rounded-full border hairline px-3 py-1.5 text-sm text-zinc-200 hover:bg-white/5"
       >
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-medium text-black">

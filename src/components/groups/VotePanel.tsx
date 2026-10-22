@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { voteOnJoinRequest, type FormState } from "@/lib/actions/groups";
@@ -52,7 +53,11 @@ function RequestRow({
       <input type="hidden" name="slug" value={slug} />
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium">{req.display_name ?? "Applicant"}</p>
+          <p className="text-sm font-medium">
+            <Link href={`/u/${req.user_id}`} className="hover:underline">
+              {req.display_name ?? "Applicant"}
+            </Link>
+          </p>
           <p className="mt-1 text-xs text-zinc-400">{req.reason}</p>
         </div>
         <span className="shrink-0 text-xs text-zinc-500">

@@ -58,6 +58,7 @@ export type GroupDetail = {
   isMember: boolean;
   isLeader: boolean;
   pendingRequest: { id: string; reason: string } | null;
+  lastDenied: { reason: string | null; decided_at: string; retry_at: string } | null;
   openRequests: {
     id: string;
     user_id: string;
@@ -79,6 +80,10 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   if (!group) return null;
 
   const user = await getUser();
+
+  if (user) {
+    await sb.rpc("settle_due_join_requests", { p_group: group.id });
+  }
 
   const { data: members } = await sb
     .from("group_members")
@@ -108,6 +113,7 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   }
 
   let pendingRequest: GroupDetail["pendingRequest"] = null;
+  let lastDenied: GroupDetail["lastDenied"] = null;
   if (user && !isMember) {
     const { data: pr } = await sb
       .from("join_requests")
@@ -117,6 +123,26 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
       .eq("status", "pending")
       .maybeSingle();
     pendingRequest = (pr as GroupDetail["pendingRequest"]) ?? null;
+
+    const { data: dn } = await sb
+      .from("join_requests")
+      .select("outcome_reason, decided_at")
+      .eq("group_id", group.id)
+      .eq("user_id", user.id)
+      .eq("status", "denied")
+      .order("decided_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (dn?.decided_at) {
+      const decided = new Date(dn.decided_at as string);
+      const retry = new Date(decided.getTime() + 7 * 24 * 60 * 60 * 1000);
+      lastDenied = {
+        reason: (dn.outcome_reason as string | null) ?? null,
+        decided_at: decided.toISOString(),
+        retry_at: retry.toISOString(),
+      };
+    }
   }
 
   let openRequests: GroupDetail["openRequests"] = [];
@@ -144,12 +170,13 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   }
 
   return {
-    ...(group as Omit<GroupDetail, "members" | "invites" | "isMember" | "isLeader" | "pendingRequest" | "openRequests">),
+    ...(group as Omit<GroupDetail, "members" | "invites" | "isMember" | "isLeader" | "pendingRequest" | "lastDenied" | "openRequests">),
     members: memberList,
     invites,
     isMember,
     isLeader,
     pendingRequest,
+    lastDenied,
     openRequests,
   };
 }

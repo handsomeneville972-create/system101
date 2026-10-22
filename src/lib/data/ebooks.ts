@@ -64,7 +64,11 @@ function ratingOf(reviews: { rating: number }[] | null): { avg: number | null; c
   return { avg: Math.round((sum / list.length) * 10) / 10, count: list.length };
 }
 
-export async function listEbooks(filter: PriceFilter = "all", limit = 60): Promise<EbookListItem[]> {
+export async function listEbooks(
+  filter: PriceFilter = "all",
+  limit = 60,
+  uploaderId?: string
+): Promise<EbookListItem[]> {
   const sb = supabasePublic();
   let q = sb
     .from("ebooks")
@@ -76,6 +80,7 @@ export async function listEbooks(filter: PriceFilter = "all", limit = 60): Promi
     .limit(limit);
   if (filter === "free") q = q.eq("price_cents", 0);
   if (filter === "paid") q = q.gt("price_cents", 0);
+  if (uploaderId) q = q.eq("uploader_id", uploaderId);
 
   const { data } = await q;
   const rows = (data ?? []) as Record<string, unknown>[];

@@ -6,6 +6,9 @@ import { getUser } from "@/lib/auth";
 import { JoinRequestForm } from "@/components/groups/JoinRequestForm";
 import { VotePanel } from "@/components/groups/VotePanel";
 import { InviteLinks } from "@/components/groups/InviteLinks";
+import { GroupSettings } from "@/components/groups/GroupSettings";
+import { GroupMembers } from "@/components/groups/GroupMembers";
+import { LeaveGroup } from "@/components/groups/LeaveGroup";
 import { CreateSuggyForm } from "@/components/suggy/CreateSuggyForm";
 import { SuggyVotePanel } from "@/components/suggy/SuggyVotePanel";
 
@@ -72,6 +75,19 @@ export default async function GroupPage({
               </div>
             </div>
           )}
+          {group.isLeader && (
+            <div className="card p-6">
+              <h2 className="text-sm font-medium">Group settings</h2>
+              <div className="mt-3">
+                <GroupSettings
+                  groupId={group.id}
+                  slug={group.slug}
+                  name={group.name}
+                  rules={group.rules}
+                />
+              </div>
+            </div>
+          )}
           <div className="card p-6">
             <h2 className="text-sm font-medium">Join requests</h2>
             <div className="mt-3">
@@ -92,21 +108,46 @@ export default async function GroupPage({
           </div>
           <div className="card p-6">
             <h2 className="text-sm font-medium">Members</h2>
-            <ul className="mt-3 space-y-1 text-sm text-zinc-400">
-              {group.members.map((m) => (
-                <li key={m.user_id}>
-                  {m.display_name ?? "Member"}
-                  {m.role !== "member" && (
-                    <span className="ml-2 text-xs text-zinc-500">{m.role}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3">
+              <GroupMembers
+                groupId={group.id}
+                slug={group.slug}
+                members={group.members}
+                leaderId={group.leader_id}
+                isLeader={group.isLeader}
+                currentUserId={user?.id ?? ""}
+              />
+            </div>
+            {!group.isLeader && (
+              <div className="mt-4 border-t hairline pt-4">
+                <LeaveGroup groupId={group.id} />
+              </div>
+            )}
           </div>
         </div>
       ) : group.pendingRequest ? (
         <div className="card mt-6 p-6 text-sm text-zinc-300">
           Your request is pending. Members vote. 80% yes within 48h.
+        </div>
+      ) : group.lastDenied ? (
+        <div className="mt-6 space-y-4">
+          <div className="card p-6">
+            <h2 className="text-sm font-medium">Last application</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              {group.lastDenied.reason ?? "Not enough yes votes."}
+            </p>
+            <p className="mt-2 text-xs text-zinc-500">
+              {new Date(group.lastDenied.retry_at) > new Date()
+                ? `You can request again on ${new Date(group.lastDenied.retry_at).toLocaleDateString(
+                    "en-US",
+                    { month: "short", day: "numeric", year: "numeric" }
+                  )}.`
+                : "You can request again now."}
+            </p>
+          </div>
+          {new Date(group.lastDenied.retry_at) <= new Date() && user && (
+            <JoinRequestForm groupId={group.id} slug={group.slug} />
+          )}
         </div>
       ) : user ? (
         <JoinRequestForm groupId={group.id} slug={group.slug} />

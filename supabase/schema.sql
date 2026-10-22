@@ -136,6 +136,9 @@ create table if not exists public.suggy_global_votes (
 -- migrations for pre-existing databases
 alter table public.profiles add column if not exists goals text;
 alter table public.suggies add column if not exists outcome_reason text;
+alter table public.join_requests add column if not exists decided_at timestamptz;
+update public.join_requests set decided_at = created_at
+  where status in ('approved','denied') and decided_at is null;
 
 -- =========================================================
 -- 2) helper functions (after tables so bodies validate)
@@ -308,6 +311,7 @@ declare
   v_yes int;
   v_no int;
   v_leader_yes boolean := false;
+  v_reason text;
   v_pass boolean;
 begin
   select * into r from public.join_requests where id = p_request for update;
@@ -321,6 +325,9 @@ begin
     from public.request_votes vv
     join public.groups g on g.id = r.group_id
     where vv.request_id = p_request and vv.voter_id = g.leader_id;
+  select reason into v_reason from public.request_votes
+    where request_id = p_request and not yes and reason is not null
+    order by created_at desc limit 1;
 
   if (v_yes + v_no) = 0 then
     v_pass := false;
@@ -334,16 +341,73 @@ begin
   if v_pass then
     insert into public.group_members(group_id, user_id, role)
       values (r.group_id, r.user_id, 'member') on conflict do nothing;
-    update public.join_requests set status = 'approved' where id = p_request;
+    update public.join_requests
+      set status = 'approved', decided_at = now(), outcome_reason = null
+      where id = p_request;
     return jsonb_build_object('status', 'approved');
   end if;
 
   if (v_yes + v_no) >= v_members or now() >= r.decide_by then
-    update public.join_requests set status = 'denied' where id = p_request;
+    update public.join_requests
+      set status = 'denied', decided_at = now(),
+          outcome_reason = coalesce(
+            v_reason,
+            case when now() >= r.decide_by
+              then 'Vote window ended without approval.'
+              else 'Not enough yes votes (80% required).'
+            end
+          )
+      where id = p_request;
     return jsonb_build_object('status', 'denied');
   end if;
 
   return jsonb_build_object('status', 'pending', 'yes', v_yes, 'no', v_no);
+end;
+$$;
+
+-- lazily settle requests whose 48h window has passed (no cron required)
+create or replace function public.settle_due_join_requests(p_group uuid)
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  r record;
+  v_count int := 0;
+begin
+  if auth.uid() is null then return 0; end if;
+  for r in
+    select id from public.join_requests
+    where group_id = p_group and status = 'pending' and decide_by <= now()
+  loop
+    perform public.settle_join_request(r.id);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+
+-- atomic leadership transfer (leader -> any member)
+create or replace function public.transfer_group_leadership(p_group uuid, p_new_leader uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g public.groups;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+  select * into g from public.groups where id = p_group for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if g.leader_id <> uid then return jsonb_build_object('status', 'forbidden'); end if;
+  if p_new_leader = uid then return jsonb_build_object('status', 'same'); end if;
+  if not exists (
+    select 1 from public.group_members
+    where group_id = p_group and user_id = p_new_leader
+  ) then return jsonb_build_object('status', 'not_member'); end if;
+
+  update public.groups set leader_id = p_new_leader where id = p_group;
+  update public.group_members set role = 'leader'
+    where group_id = p_group and user_id = p_new_leader;
+  update public.group_members set role = 'member'
+    where group_id = p_group and user_id = uid;
+
+  return jsonb_build_object('status', 'transferred');
 end;
 $$;
 
@@ -460,6 +524,8 @@ create index if not exists idx_reviews_ebook on public.reviews(ebook_id);
 create index if not exists idx_payments_buyer on public.payments(buyer_id);
 create index if not exists idx_group_invites_group on public.group_invites(group_id, status);
 create index if not exists idx_global_votes_suggy on public.suggy_global_votes(suggy_id, up);
+create index if not exists idx_join_requests_user_group
+  on public.join_requests(user_id, group_id, status, decided_at desc);
 
 -- =========================================================
 -- 7) P3 — Ebooku, settings, notify
@@ -498,5 +564,34 @@ drop policy if exists "ebook files delete own" on storage.objects;
 create policy "ebook files delete own" on storage.objects for delete to authenticated
   using (
     bucket_id in ('ebook-files','ebook-covers')
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- =========================================================
+-- 8) Community core — avatars
+-- =========================================================
+
+insert into storage.buckets (id, name, public)
+values ('avatars','avatars',false)
+on conflict (id) do nothing;
+
+drop policy if exists "avatars upload own" on storage.objects;
+create policy "avatars upload own" on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "avatars update own" on storage.objects;
+create policy "avatars update own" on storage.objects for update to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "avatars delete own" on storage.objects;
+create policy "avatars delete own" on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'avatars'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
