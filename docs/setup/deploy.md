@@ -13,7 +13,7 @@ select table_name from information_schema.tables where table_schema = 'public' o
 select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' order by 1;
 ```
 
-Expect 16 tables and 10 functions.
+Expect 16 tables and 16 functions.
 
 ## 2. Supabase — Authentication URLs
 
@@ -27,7 +27,7 @@ Dashboard → Authentication → URL Configuration:
 | | `http://localhost:3000/auth/callback` |
 | | `https://*-*.vercel.app/auth/callback` (optional, preview deploys) |
 
-Magic links are built as `${origin}/auth/callback?next=...` in `src/app/auth/sign-in/page.tsx`. If the origin is not allowlisted, Supabase falls back to the Site URL and the user lands with no session.
+Magic links redirect to `/auth/callback`; a `next` parameter is added only when a protected route sent the user to sign-in. The callback sends completed profiles to `/home` and new users to `/onboarding`. If the origin is not allowlisted, Supabase falls back to the Site URL and the user lands with no session.
 
 **Custom SMTP is required for real use** — the built-in sender is rate-limited to ~2 emails/hour. Set it under Authentication → Email → SMTP Settings.
 
@@ -56,7 +56,7 @@ Rules:
 - Settings → API & Webhooks → Webhook URL: `https://system101.network/api/webhooks/paystack`
 - Confirm USD is enabled on the account (min charge $2.00, paid ebook floor $2.99).
 - Webhooks cannot reach localhost; use a tunnel (e.g. ngrok) for local testing.
-- `charge.success` persists ebooks sales to `payments` and donations to `donations`, idempotently by `reference`; ebook amount/currency are checked against the DB row before writing.
+- Ebook checkout creates a pending `payments` row with a server-generated reference before Paystack init. `charge.success` trusts only that row/reference/amount/currency (not metadata ids); duplicates are idempotent, `charge.failed` marks failed, refund events mark `refunded`. Donations go to `donations` after a USD amount >= $2 check.
 - Paid ebook checkout needs `PAYSTACK_SECRET_KEY` + USD enabled; until then the Buy button returns a checkout error.
 
 ## 5. Verification checklist
@@ -69,6 +69,7 @@ Rules:
 6. `/u/<id>` shows a public profile; settings avatar upload/save/remove works; member names on a group page open profiles.
 7. Leader can edit group name/rules, remove a member, and transfer leadership; non-leaders can leave. A denied applicant sees the reason + retry date and cannot re-request for 7 days.
 8. `/decourse/upload` → YouTube/Vimeo link + optional PDF notes → course appears on `/decourse`; the detail page embeds the player and the notes download redirects to a signed URL. Free course uploads work now; the $5 paid tier is not built.
+9. Trust flows: direct self-join is denied; join request appears only while pending and can be canceled; one vote of two stays pending; members can leave and the group shrinks; invites are single-use and the group activates only after 2 distinct members join; leader cannot consume an own invite; returning magic-link sign-in goes straight to `/home`; a paid buyer can still download a removed book.
 
 ## 6. Troubleshooting
 
