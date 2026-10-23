@@ -1,4 +1,4 @@
-# 0.01%SYSTEM — Decisions Log
+# De\`System — Decisions Log
 - 2026-10-16: Stack = Next.js 15 + Supabase (user chose over Hono/FastAPI). Reason: MVP speed, RLS, Storage.
 - 2026-10-16: Payments = Stripe live (Checkout + Connect + webhooks). Note: $0.99 upload fee uneconomic (~$0.66 net); use 10% on sale.
 - 2026-10-16: Voting = supermajority 80% + 48h timeout + leader tie-break (user overrode unanimous veto to avoid deadlock).
@@ -37,3 +37,5 @@
 - 2026-10-22: Payments start with a server-generated pending row/reference before Paystack init. Webhooks trust only the stored row/amount/currency and unique reference, ignore metadata ids, mark `failed` and `refunded`, and remain idempotent. Duplicate checkout within 30 minutes returns 409.
 - 2026-10-22: Buckets now enforce 20MB PDF/EPUB for book/course files and 2MB JPEG/PNG/WebP for covers/avatars. Content objects cannot be deleted by clients after upload; covers/avatars remain replaceable/deletable.
 - 2026-10-22: Returning magic-link users route by profile: callback/`/home` sends completed profiles to `/home`, incomplete ones to `/onboarding`; onboarding prefills and skips when an interest exists. `/groups/join` is public so invite tokens survive the sign-in round trip.
+- 2026-10-23: Brand display name is ``De`System`` (backtick intentional). Logo glyph and icon assets are unchanged. Scope is display-only: domain `system101.network`, repo/Vercel `system101`, Supabase project ref, support email and npm package name stay as-is.
+- 2026-10-23: Donations retired entirely (UI, settings toggles, API route, data helpers, `donations` table/policies, `profiles.donate_surfaces`, webhook branch). Reason: keeping the product surface to paid ebooks and app listings. Existing `donations` tables in deployed databases are not dropped by re-running schema.sql.

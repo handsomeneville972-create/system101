@@ -20,13 +20,6 @@ export async function saveSettings(_prev: FormState, formData: FormData): Promis
   if (bio.length > 1000) return { error: "Bio is too long." };
   if (!INTERESTS.some((i) => i.slug === interest)) return { error: "Pick a valid interest." };
 
-  const donate_surfaces = {
-    home: formData.get("donate_home") === "on",
-    ebooku: formData.get("donate_ebooku") === "on",
-    suggy: formData.get("donate_suggy") === "on",
-    apps: formData.get("donate_apps") === "on",
-  };
-
   const sb = await supabaseServer();
   const { error } = await sb
     .from("profiles")
@@ -35,7 +28,6 @@ export async function saveSettings(_prev: FormState, formData: FormData): Promis
       interest,
       bio: bio || null,
       goals: goals || null,
-      donate_surfaces,
     })
     .eq("id", user.id);
 

@@ -1,6 +1,6 @@
 # Deploy & environment setup
 
-Project: **0.01%SYSTEM** · prod domain: **https://system101.network** · Supabase project ref: `geqyrbpdxlqhicoytgrq`
+Project: **De\`System** · prod domain: **https://system101.network** · Supabase project ref: `geqyrbpdxlqhicoytgrq`
 
 ## 1. Supabase — apply schema
 
@@ -46,8 +46,6 @@ Settings → Environment Variables, for **Production** and **Preview**:
 | `PLATFORM_SPLIT_PERCENT` | `10` |
 | `APP_LISTING_FEE_CENTS` | `499` ($4.99 developer-paid app listing fee) |
 | `ANALYTICS_SALT` | random 32+ char string — server only; salts anonymous app analytics hashes |
-| `DONATION_EMAIL` | optional, fallback `support@001system.dev` |
-
 Rules:
 - Never prefix `SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY` or `ANALYTICS_SALT` with `NEXT_PUBLIC_`.
 - `NEXT_PUBLIC_*` values are inlined at build time — redeploy after any change.
@@ -58,7 +56,7 @@ Rules:
 - Settings → API & Webhooks → Webhook URL: `https://system101.network/api/webhooks/paystack`
 - Confirm USD is enabled on the account (min charge $2.00, paid ebook floor $2.99).
 - Webhooks cannot reach localhost; use a tunnel (e.g. ngrok) for local testing.
-- Ebook checkout creates a pending `payments` row with a server-generated reference before Paystack init. `charge.success` trusts only that row/reference/amount/currency (not metadata ids); duplicates are idempotent, `charge.failed` marks failed, refund events mark `refunded`. Donations go to `donations` after a USD amount >= $2 check.
+- Ebook checkout creates a pending `payments` row with a server-generated reference before Paystack init. `charge.success` trusts only that row/reference/amount/currency (not metadata ids); duplicates are idempotent, `charge.failed` marks failed, refund events mark `refunded`.
 - Paid ebook checkout needs `PAYSTACK_SECRET_KEY` + USD enabled; until then the Buy button returns a checkout error.
 
 ## 5. Verification checklist

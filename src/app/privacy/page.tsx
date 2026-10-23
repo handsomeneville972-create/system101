@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy · 0.01%SYSTEM",
-  description: "What 0.01%SYSTEM collects, why, and how to get it back or deleted.",
+  title: "Privacy · De`System",
+  description: "What De`System collects, why, and how to get it back or deleted.",
 };
 
 const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "Who we are",
     body: [
-      "0.01%SYSTEM is a project of C. Levi Company. This policy explains what we collect when you use the service, why we collect it, and the choices you have.",
+      "De`System is a project of C. Levi Company. This policy explains what we collect when you use the service, why we collect it, and the choices you have.",
     ],
   },
   {
@@ -19,7 +19,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
       "Profile: the display name, interest, bio and goals you enter, plus an avatar image if you upload one.",
       "Community activity: the groups you join, join requests you send or receive, votes you cast (including any reason you leave for a no vote), signal up and down votes, and the invite links created inside your groups.",
       "Content: books you upload or buy, the descriptions and prices you set, reviews and ratings you write, and courses you upload or watch.",
-      "Payments: for paid books and donations we keep the transaction reference, amount, status and the email used, processed by Paystack.",
+      "Payments: for paid books we keep the transaction reference, amount, status and the email used, processed by Paystack.",
       "Waitlist: if you ask to be notified about the desktop apps, we store your email and which list you joined.",
       "Downloads: we issue time-limited signed links to files, and we log that a download was issued.",
       "App analytics: if you publish an app, we record aggregate listing events (views, outbound clicks, country, device, referring site and campaign tags) tied to a daily rotating anonymous hash. We never store the raw IP address or browser string for analytics.",
@@ -91,7 +91,7 @@ export default function Privacy() {
       </div>
 
       <p className="mt-6 text-xs text-zinc-400">
-        0.01%SYSTEM · From C. Levi Company
+        De`System · From C. Levi Company
       </p>
     </div>
   );

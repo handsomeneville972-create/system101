@@ -8,13 +8,14 @@ import { AppContent } from "@/components/shell/AppContent";
 import { AppSidebar } from "@/components/shell/AppSidebar";
 import { SidebarAccount } from "@/components/shell/SidebarAccount";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
+import { SITE } from "@/lib/nav";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-  title: "0.01%SYSTEM · Grow",
+  title: `${SITE.name} · Grow`,
   description: "Find your people. Build. Grow.",
   icons: {
     icon: [
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "0.01%SYSTEM · Grow",
+    title: `${SITE.name} · Grow`,
     description: "Find your people. Build. Grow.",
     images: ["/og-image.png"],
   },

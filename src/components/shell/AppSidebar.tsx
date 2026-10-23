@@ -14,6 +14,7 @@ import {
   COMPANY_NAV,
   CONTRIBUTE_NAV,
   NAV_LINKS,
+  SITE,
   WORK_NAV,
   type NavItem,
 } from "@/lib/nav";
@@ -225,7 +226,7 @@ export function AppSidebar({ account }: { account: ReactNode }) {
           <Link
             href="/"
             onClick={closeMobile}
-            aria-label="0.01%SYSTEM home"
+            aria-label={`${SITE.name} home`}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1.5 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
               collapsed && "md:hidden",
@@ -240,7 +241,7 @@ export function AppSidebar({ account }: { account: ReactNode }) {
               priority
             />
             <span className="truncate text-sm font-semibold tracking-tight">
-              0.01%SYSTEM
+              {SITE.name}
             </span>
           </Link>
           <button

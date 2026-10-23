@@ -80,21 +80,6 @@ export async function POST(req: Request) {
         break;
       }
 
-      const meta = d.metadata ?? {};
-      if (String(meta.kind ?? "") === "donation") {
-        if (!reference || currency !== "USD" || amount < 200) break;
-        const { error } = await admin.from("donations").upsert(
-          {
-            reference,
-            amount_cents: amount,
-            currency,
-            surface: String(meta.surface ?? "home"),
-            email: String(d.customer?.email ?? ""),
-          },
-          { onConflict: "reference" }
-        );
-        if (error) return NextResponse.json({ error: "Database error" }, { status: 500 });
-      }
       break;
     }
     case "charge.failed": {

@@ -1,4 +1,4 @@
--- 0.01%SYSTEM schema (Supabase Postgres + RLS) — project geqyrbpdxlqhicoytgrq
+-- De`System schema (Supabase Postgres + RLS) — project geqyrbpdxlqhicoytgrq
 -- Order: tables → helper functions → RLS → trigger → RPCs → indexes
 -- Idempotent: safe to re-run in full.
 
@@ -152,14 +152,6 @@ create table if not exists public.suggy_votes (
   primary key (suggy_id, voter_id)
 );
 
-create table if not exists public.donations (
-  id uuid primary key default gen_random_uuid(),
-  reference text unique not null,
-  amount_cents int not null, currency text default 'USD',
-  surface text, email text,
-  created_at timestamptz default now()
-);
-
 create table if not exists public.payments (
   id uuid primary key default gen_random_uuid(),
   reference text unique not null,
@@ -309,10 +301,6 @@ create policy "suggy_votes member insert" on public.suggy_votes for insert
     and exists (select 1 from public.suggies s where s.id = suggy_id and public.is_group_member(s.group_id, auth.uid())));
 create policy "suggy_votes member update" on public.suggy_votes for update
   using (auth.uid() = voter_id) with check (auth.uid() = voter_id);
-
-alter table public.donations enable row level security;
-drop policy if exists "donations read" on public.donations;
-create policy "donations read" on public.donations for select using (false);
 
 alter table public.payments enable row level security;
 drop policy if exists "payments self read" on public.payments;
@@ -592,10 +580,6 @@ create index if not exists idx_join_requests_user_group
 -- =========================================================
 -- 7) P3 — Ebooku, settings, notify
 -- =========================================================
-
-alter table public.profiles
-  add column if not exists donate_surfaces jsonb not null
-  default '{"home":true,"ebooku":true,"suggy":true,"apps":true}'::jsonb;
 
 create table if not exists public.notify_requests (
   id uuid primary key default gen_random_uuid(),

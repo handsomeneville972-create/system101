@@ -42,7 +42,7 @@ export const CONTRIBUTE_NAV: NavItem[] = [
 ];
 
 export const SITE = {
-  name: "0.01%SYSTEM",
+  name: "De`System",
   tagline: "For those who aspire. Build something great. Find your people.",
   email: "support@001system.dev",
   youtube: "https://www.youtube.com/@PERSPECTIVExGROWTH",

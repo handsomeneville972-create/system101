@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DonateButton } from "@/components/DonateButton";
 import { getProfile } from "@/lib/auth";
-import { donateVisible } from "@/lib/donate";
 import { myGroups } from "@/lib/data/groups";
 import { trendingSignals } from "@/lib/data/suggy";
 import { recentEbooks } from "@/lib/data/ebooks";
@@ -113,11 +111,6 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {donateVisible(profile, "home") && (
-        <div className="mt-6">
-          <DonateButton surface="home" />
-        </div>
-      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { AuthNav } from "@/components/AuthNav";
 import { MenuButton } from "@/components/shell/MenuButton";
+import { SITE } from "@/lib/nav";
 
 function AuthFallback() {
   return (
@@ -32,14 +33,14 @@ export function Navbar() {
           <Link href="/" className="flex min-w-0 items-center gap-2">
             <Image
               src="/logo.png"
-              alt="0.01%SYSTEM"
+              alt={SITE.name}
               width={406}
               height={396}
               className="h-8 w-auto"
               priority
             />
             <span className="hidden truncate text-sm font-semibold tracking-tight sm:inline">
-              0.01%SYSTEM <span className="text-zinc-400">· Grow</span>
+              {SITE.name} <span className="text-zinc-400">· Grow</span>
             </span>
           </Link>
         </div>

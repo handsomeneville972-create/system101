@@ -5,17 +5,8 @@ import { useFormStatus } from "react-dom";
 import { saveSettings, type FormState } from "@/lib/actions/settings";
 import { INTERESTS } from "@/lib/domain";
 import type { Profile } from "@/lib/auth";
-import type { DonateSurface } from "@/lib/donate";
 
 const initial: FormState = {};
-
-const SURFACES: { key: DonateSurface; label: string }[] = [
-  { key: "home", label: "Home" },
-  { key: "ebooku", label: "Ebooku" },
-  { key: "suggy", label: "Suggy" },
-  { key: "apps", label: "Apps" },
-];
-
 function Submit() {
   const { pending } = useFormStatus();
   return (
@@ -71,23 +62,6 @@ export function SettingsForm({ profile }: { profile: Profile | null }) {
           placeholder="Goals"
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
         />
-      </div>
-
-      <div className="card p-6">
-        <h2 className="text-sm font-medium">Support button visibility</h2>
-        <p className="text-sm text-zinc-400">Toggle per location. Reversible.</p>
-        <div className="mt-4 space-y-3">
-          {SURFACES.map((s) => (
-            <label key={s.key} className="flex items-center justify-between text-sm">
-              <span>{s.label}</span>
-              <input
-                type="checkbox"
-                name={`donate_${s.key}`}
-                defaultChecked={profile?.donate_surfaces?.[s.key] !== false}
-              />
-            </label>
-          ))}
-        </div>
       </div>
 
       {state.error && <p className="text-xs text-red-400">{state.error}</p>}

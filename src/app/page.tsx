@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Users, BookOpen, Lightbulb, AppWindow, GraduationCap } from "lucide-react";
-import { DonateButton } from "@/components/DonateButton";
 import { getUser } from "@/lib/auth";
+import { SITE } from "@/lib/nav";
 
 export const instant = false;
 
@@ -19,8 +19,8 @@ export default async function Landing() {
   return (
     <div className="mx-auto max-w-6xl px-4">
       <section className="py-20 text-center">
-        <Image src="/logo.png" alt="0.01%SYSTEM" width={406} height={396} className="mx-auto h-16 w-auto" priority />
-        <p className="mt-4 text-xs uppercase tracking-widest text-zinc-400">0.01%SYSTEM</p>
+        <Image src="/logo.png" alt={SITE.name} width={406} height={396} className="mx-auto h-16 w-auto" priority />
+        <p className="mt-4 text-xs tracking-widest text-zinc-400">{SITE.name}</p>
         <h1 className="mt-3 text-5xl font-semibold tracking-tight">Grow.</h1>
         <p className="mx-auto mt-4 max-w-xl text-zinc-400">
           For those who aspire. Build something great. Find your people.
@@ -35,9 +35,6 @@ export default async function Landing() {
           <Link href="/findem" className="btn-pill border hairline px-6 py-3 text-sm text-zinc-200">
             Explore
           </Link>
-        </div>
-        <div className="mt-6 flex justify-center">
-          <DonateButton surface="home" />
         </div>
       </section>
 

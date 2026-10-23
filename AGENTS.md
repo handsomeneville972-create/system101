@@ -1,4 +1,4 @@
-# AGENTS.md — 0.01%SYSTEM
+# AGENTS.md — De\`System
 
 ## Commands
 - `npm run dev` — dev server; `npm run build` — prod build; `npm run lint` — lint

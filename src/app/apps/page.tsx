@@ -1,14 +1,10 @@
 import Link from "next/link";
-import { DonateButton } from "@/components/DonateButton";
 import { AppCard } from "@/components/apps/AppCard";
 import { listApps } from "@/lib/data/apps";
-import { getProfile } from "@/lib/auth";
-import { donateVisible } from "@/lib/donate";
 
 export const instant = false;
 
 export default async function Apps() {
-  const profile = await getProfile();
   const apps = await listApps();
 
   return (
@@ -38,11 +34,6 @@ export default async function Apps() {
         </div>
       )}
 
-      {donateVisible(profile, "apps") && (
-        <div className="mt-10 border-t hairline pt-6">
-          <DonateButton surface="apps" />
-        </div>
-      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-# 0.01%SYSTEM
+# De\`System
 
 Find your people. Build. Grow.
 

@@ -1,9 +1,6 @@
 import Link from "next/link";
-import { DonateButton } from "@/components/DonateButton";
 import { EbookCard } from "@/components/ebooku/EbookCard";
 import { listEbooks, type PriceFilter } from "@/lib/data/ebooks";
-import { getProfile } from "@/lib/auth";
-import { donateVisible } from "@/lib/donate";
 
 export const instant = false;
 
@@ -20,7 +17,7 @@ export default async function Ebooku({
 }) {
   const { price } = await searchParams;
   const filter: PriceFilter = price === "free" || price === "paid" ? price : "all";
-  const [books, profile] = await Promise.all([listEbooks(filter), getProfile()]);
+  const books = await listEbooks(filter);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -59,11 +56,6 @@ export default async function Ebooku({
         ))}
       </div>
 
-      {donateVisible(profile, "ebooku") && (
-        <div className="mt-6">
-          <DonateButton surface="ebooku" />
-        </div>
-      )}
     </div>
   );
 }

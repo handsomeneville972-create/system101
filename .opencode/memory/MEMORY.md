@@ -1,13 +1,12 @@
-# 0.01%SYSTEM — Agent Memory
+# De\`System — Agent Memory
 Slogan: Grow. Audience: aspirational builders, dreamers, goal-oriented community.
 
 ## Locked decisions
 - Stack: Next.js 16 App Router + TypeScript + Tailwind + shadcn/ui + Supabase (Auth/DB/Storage/Realtime) + Paystack live + Vercel
 - Voting: SUPERMAJORITY 80% + 48h timeout (not unanimous veto) for join-requests and Suggy
 - Build order: Groups-first (P0 landing/auth/design → P1 Find'em → P2 Suggy → P3 Ebooku → P4 Apps/Donations/De-Course stub)
-- Money: Paystack USD (min $2.00). Paid ebook floor $2.99. Platform takes 10% via subaccounts/splits. Donations $5.
+- Money: Paystack USD (min $2.00). Paid ebook floor $2.99. Platform takes 10% via subaccounts/splits. Donations retired (2026-10-23).
 - Supabase project ref: geqyrbpdxlqhicoytgrq (prior ref had a typo and never existed). Keys in C:\Users\Neville\.keys (rotated out of repo).
-- DonateButton: `<DonateButton surface>` with per-surface visibility toggles in settings (home|ebooku|suggy|apps), reversible not delete.
 - UI: dark #000/#0A0A0A, hairline rgba(255,255,255,0.08), Geist/Inter, minimal words, lucide icons, 3-col app shell.
 
 ## Current state
@@ -32,6 +31,10 @@ Slogan: Grow. Audience: aspirational builders, dreamers, goal-oriented community
 - 2026-10-22: Interest rename DONE + DEPLOYED (27c742a, dpl_3PpzTUkv4CbZtRdBBPrCXpDHByhr). Full `profession` → `interest` rename across DB, types, data helpers, actions, pages and UI (also removed "craft" as the category synonym). New 12-interest taxonomy in `src/lib/domain.ts` (`INTERESTS`, `InterestSlug`, `interestLabel`): business, trading, tech, content, design, music, fitness, books, gaming, marketing, mindset, faith. Existing slugs remapped (traders→trading, dropshippers/startup-founders/founders→business, creators→content, musicians→music, affiliates→marketing, engineers/developers→tech); old `/findem/[slug]` URLs 308-redirect in `next.config.ts`. Schema §1b is idempotent: guarded column rename, slug backfill, `idx_groups_profession` dropped, `idx_groups_interest` created, `pgrst` schema reload. Settings now uses the same required interest select as onboarding (closes the old free-text drift). Route folder renamed to `/findem/[interest]`; URL shape unchanged. Verification: `rg` shows no stray `profession/craft` outside the migration/memory.
 
 - 2026-10-23: App analytics DONE (not deployed). Schema §12 applied via Management API: `app_events` (kind view/click, target, source, visitor_hash, unique dedupe_key, country, device, is_bot, referrer_host, utm_*), owner-only SELECT RLS, indexes, `purge_app_events()` (service-role only, 180-day retention), `app_analytics(p_app,p_days)` security-invoker JSON RPC (totals, previous period, zero-filled daily, per-app, sources/referrers/countries/devices/campaigns). Tracking: `/apps/[id]/click` 302 with `utm_source=system101` pass-through + `ref`; `POST /api/apps/[id]/view` client beacon (prefetch-safe); `isbot`; 5-min dedupe; daily salted sha256 visitor hash; owner/DNT/GPC excluded; repo links tracked too. UI: `/dashboard/apps` (7D/30D/90D/All, app pills, KPI deltas, SVG trend, breakdowns, per-app table, CSV `/dashboard/apps/export`, tracked-link builder), owner summary + published apps on `/u/[id]`, "Your work → My apps" sidebar, `/dashboard` protected, `/apps/[id]` Visit/repo links + owner "View stats". Privacy page discloses first-party cookie-free analytics. Env: `ANALYTICS_SALT` (fallback to service key if empty/unset). Retention: `purge_app_events()` runs lazily on dashboard load, not a cron. tsc clean; build green. Local prod smoke test: 302 click + UTM, bot flagged/excluded, 5-min dedupe, 204 view, profile app card, dashboard redirect, RPC totals/previous/daily/breakdowns, RLS/grants; test app removed.
+
+- 2026-10-23: Display rebrand to ``De`System`` (logo unchanged). `SITE.name` is the single source (Footer, Navbar, Sidebar, landing, metadata); privacy/terms copy, docs headers and OG/Twitter cards updated. Infrastructure intentionally unchanged: `system101.network`, repo/Vercel `system101`, Supabase ref, `support@001system.dev`, npm name `zero-one-system`. Vercel/Supabase/Paystack display names still need manual updates.
+
+- 2026-10-23: Donations retired. Removed `DonateButton`, `src/lib/donate.ts`, `/api/checkout/donate`, the `donations` table/policies, `profiles.donate_surfaces`, webhook donation branch, settings toggles, and all surface CTAs. Paystack webhook now handles ebook and app-listing payments only; legal copy no longer mentions donations.
 
 ## Still TODO
 - Interest rename rollout DONE: prod columns renamed, slug backfill applied (1 profile + 1 group → business), `idx_groups_interest` created, PostgREST reloaded. Deployed 27c742a; prod smoke: `/findem` 200 with 12 interests, `/findem/business` 200 shows TaskNova, `/findem/tech` 200, `/findem/developers` 308 → `/findem/tech`, `/findem/founders` 308 → `/findem/business`, `/groups/tasknova` 200 shows Business & Startups, `/privacy` 200, `/onboarding` 307 to sign-in.

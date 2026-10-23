@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { DonateButton } from "@/components/DonateButton";
 import { SuggyCard } from "@/components/suggy/SuggyCard";
 import { publishedFeed } from "@/lib/data/suggy";
 import { getProfile } from "@/lib/auth";
-import { donateVisible } from "@/lib/donate";
 
 export const instant = false;
 
@@ -40,11 +38,6 @@ export default async function Suggy() {
         ))}
       </div>
 
-      {donateVisible(profile, "suggy") && (
-        <div className="mt-6">
-          <DonateButton surface="suggy" />
-        </div>
-      )}
     </div>
   );
 }

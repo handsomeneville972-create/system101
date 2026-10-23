@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms · 0.01%SYSTEM",
-  description: "The rules for using 0.01%SYSTEM: accounts, community voting, uploads, payments and donations.",
+  title: "Terms · De`System",
+  description: "The rules for using De`System: accounts, community voting, uploads, payments.",
 };
 
 const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "Acceptance",
     body: [
-      "By using 0.01%SYSTEM you agree to these terms. If you do not agree, do not use the service. We may update these terms; continuing to use the service after a change means you accept the revised version.",
+      "By using De`System you agree to these terms. If you do not agree, do not use the service. We may update these terms; continuing to use the service after a change means you accept the revised version.",
     ],
   },
   {
@@ -40,7 +40,6 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     body: [
       "Paid books are sold in US dollars through Paystack. The minimum price for a paid book is $2.99. Downloads are served through private signed links that work once per purchase and expire.",
       "Author payouts run through Paystack subaccounts and splits, and the platform keeps a 10% share of each sale. Sellers are responsible for their own taxes and for refunds they approve.",
-      "Donations are optional, processed by Paystack, and never required for any part of the service.",
       "Refunds for digital purchases are handled case by case. Email us with your Paystack reference and we will sort it out. Where a file has already been downloaded, we may decline a refund.",
     ],
   },
@@ -101,7 +100,7 @@ export default function Terms() {
       </div>
 
       <p className="mt-6 text-xs text-zinc-400">
-        0.01%SYSTEM · From C. Levi Company
+        De`System · From C. Levi Company
       </p>
     </div>
   );
