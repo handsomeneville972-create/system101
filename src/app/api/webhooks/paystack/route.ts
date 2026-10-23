@@ -64,6 +64,19 @@ export async function POST(req: Request) {
           }
           return NextResponse.json({ error: "Database error" }, { status: 500 });
         }
+
+        // Flip app listing from draft to published on successful payment
+        const meta = d.metadata ?? {};
+        if (String(meta.kind ?? "") === "app_listing") {
+          const appId = String(meta.app_id ?? "");
+          if (appId) {
+            await admin
+              .from("apps")
+              .update({ status: "published" })
+              .eq("id", appId)
+              .eq("status", "draft");
+          }
+        }
         break;
       }
 

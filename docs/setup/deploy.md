@@ -44,6 +44,7 @@ Settings → Environment Variables, for **Production** and **Preview**:
 | `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | `pk_...` |
 | `NEXT_PUBLIC_SITE_URL` | `https://system101.network` |
 | `PLATFORM_SPLIT_PERCENT` | `10` |
+| `APP_LISTING_FEE_CENTS` | `499` ($4.99 developer-paid app listing fee) |
 | `DONATION_EMAIL` | optional, fallback `support@001system.dev` |
 
 Rules:
@@ -70,6 +71,7 @@ Rules:
 7. Leader can edit group name/rules, remove a member, and transfer leadership; non-leaders can leave. A denied applicant sees the reason + retry date and cannot re-request for 7 days.
 8. `/decourse/upload` → YouTube/Vimeo link + optional PDF notes → course appears on `/decourse`; the detail page embeds the player and the notes download redirects to a signed URL. Free course uploads work now; the $5 paid tier is not built.
 9. Trust flows: direct self-join is denied; join request appears only while pending and can be canceled; one vote of two stays pending; members can leave and the group shrinks; invites are single-use and the group activates only after 2 distinct members join; leader cannot consume an own invite; returning magic-link sign-in goes straight to `/home`; a paid buyer can still download a removed book.
+10. `/apps/publish` → icon + optional screenshots + optional developer bio → draft listing → `/apps/publish/checkout/<id>` → Paystack $4.99 → webhook flips the listing to `published` → appears on `/apps`; `/apps/<id>` shows bio, screenshots and external Visit link. Direct DB writes cannot publish a listing (trigger forces `draft`).
 
 ## 6. Troubleshooting
 

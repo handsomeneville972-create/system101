@@ -1257,3 +1257,121 @@ begin
   return jsonb_build_object('status', 'accepted', 'active', v_members >= 2);
 end;
 $$;
+
+-- =========================================================
+-- 11) Apps — community directory (developer-paid listing)
+-- =========================================================
+
+create table if not exists public.apps (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  tagline text,
+  description text,
+  developer_bio text,
+  icon_path text,
+  screenshot_paths text[],
+  repo_url text,
+  license text,
+  category text,
+  tags text[],
+  alternative_to text,
+  website_url text,
+  contact_email text,
+  status text default 'draft' check (status in ('draft','published','removed')),
+  uploader_id uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now()
+);
+
+alter table public.apps enable row level security;
+drop policy if exists "apps read" on public.apps;
+drop policy if exists "apps uploader insert" on public.apps;
+drop policy if exists "apps uploader update" on public.apps;
+create policy "apps read" on public.apps for select
+  using (status = 'published' or auth.uid() = uploader_id);
+create policy "apps uploader insert" on public.apps for insert
+  with check (auth.uid() = uploader_id);
+create policy "apps uploader update" on public.apps for update
+  using (auth.uid() = uploader_id);
+
+create index if not exists idx_apps_status on public.apps(status);
+create index if not exists idx_apps_uploader on public.apps(uploader_id);
+
+insert into storage.buckets (id, name, public)
+values ('app-icons','app-icons',false), ('app-screenshots','app-screenshots',false)
+on conflict (id) do nothing;
+
+drop policy if exists "app icons upload own" on storage.objects;
+create policy "app icons upload own" on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'app-icons'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "app icons delete own" on storage.objects;
+create policy "app icons delete own" on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'app-icons'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "app screenshots upload own" on storage.objects;
+create policy "app screenshots upload own" on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'app-screenshots'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "app screenshots delete own" on storage.objects;
+create policy "app screenshots delete own" on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'app-screenshots'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+alter table public.payments add column if not exists app_id uuid
+  references public.apps(id) on delete set null;
+
+create index if not exists idx_payments_app on public.payments(app_id);
+
+-- listings are born as drafts; only service role (Paystack webhook) may publish
+create or replace function public.protect_app_listing()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_path text;
+begin
+  if auth.role() is distinct from 'service_role' then
+    if tg_op = 'INSERT' then
+      new.uploader_id := auth.uid();
+      new.status := 'draft';
+    else
+      new.uploader_id := old.uploader_id;
+      if new.status is distinct from old.status then
+        if new.status = 'removed' then
+          null;
+        else
+          new.status := old.status;
+        end if;
+      end if;
+    end if;
+
+    if new.icon_path is not null and new.uploader_id is not null
+       and not starts_with(new.icon_path, new.uploader_id::text || '/') then
+      raise exception 'invalid icon path';
+    end if;
+    if new.screenshot_paths is not null then
+      foreach v_path in array new.screenshot_paths loop
+        if new.uploader_id is not null
+           and not starts_with(v_path, new.uploader_id::text || '/') then
+          raise exception 'invalid screenshot path';
+        end if;
+      end loop;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_app_listing on public.apps;
+create trigger protect_app_listing
+  before insert or update on public.apps
+  for each row execute function public.protect_app_listing();

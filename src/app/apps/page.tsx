@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { DonateButton } from "@/components/DonateButton";
-import { NotifyForm } from "@/components/NotifyForm";
-import { Monitor, Apple } from "lucide-react";
+import { AppCard } from "@/components/apps/AppCard";
+import { listApps } from "@/lib/data/apps";
 import { getProfile } from "@/lib/auth";
 import { donateVisible } from "@/lib/donate";
 
@@ -8,26 +9,37 @@ export const instant = false;
 
 export default async function Apps() {
   const profile = await getProfile();
+  const apps = await listApps();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">System Apps</h1>
-      <p className="text-sm text-zinc-400">Windows + Mac. In-apps later.</p>
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <div className="card p-6">
-          <Monitor size={20} />
-          <h2 className="mt-2 font-medium">Windows · Coming soon</h2>
-          <NotifyForm surface="apps" />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold">Community Apps</h1>
+          <p className="text-sm text-zinc-400">Apps built by members. $4.99 to publish to the community.</p>
         </div>
-        <div className="card p-6">
-          <Apple size={20} />
-          <h2 className="mt-2 font-medium">Mac · Coming soon</h2>
-          <NotifyForm surface="apps" />
-        </div>
+        <Link
+          href="/apps/publish"
+          className="btn-pill bg-white px-6 py-2.5 text-sm font-medium text-black"
+        >
+          Publish an app
+        </Link>
       </div>
-      <p className="mt-4 text-xs text-zinc-500">One email at launch. No spam.</p>
+
+      {apps.length === 0 ? (
+        <div className="card p-12 text-center">
+          <p className="text-sm text-zinc-500">No apps yet. Be the first to publish.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {apps.map((app) => (
+            <AppCard key={app.id} app={app} />
+          ))}
+        </div>
+      )}
+
       {donateVisible(profile, "apps") && (
-        <div className="mt-6">
+        <div className="mt-10 border-t hairline pt-6">
           <DonateButton surface="apps" />
         </div>
       )}
