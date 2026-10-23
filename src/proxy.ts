@@ -8,6 +8,7 @@ const PROTECTED = [
   "/settings",
   "/ebooku/upload",
   "/decourse/upload",
+  "/dashboard",
 ];
 
 export async function proxy(request: NextRequest) {

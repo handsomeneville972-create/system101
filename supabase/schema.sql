@@ -1375,3 +1375,286 @@ drop trigger if exists protect_app_listing on public.apps;
 create trigger protect_app_listing
   before insert or update on public.apps
   for each row execute function public.protect_app_listing();
+
+-- =========================================================
+-- 12) App analytics — aggregate listing events
+-- =========================================================
+
+create table if not exists public.app_events (
+  id bigint generated always as identity primary key,
+  app_id uuid not null references public.apps(id) on delete cascade,
+  kind text not null check (kind in ('view','click')),
+  target text check (target in ('website','repo')),
+  source text not null default 'direct'
+    check (source in ('directory','profile','external','direct')),
+  visitor_hash text not null,
+  dedupe_key text not null unique,
+  country text,
+  device text check (device in ('desktop','mobile','tablet','bot','unknown')),
+  is_bot boolean not null default false,
+  referrer_host text,
+  utm_source text,
+  utm_medium text,
+  utm_campaign text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.app_events enable row level security;
+
+drop policy if exists "app events owner read" on public.app_events;
+create policy "app events owner read" on public.app_events for select to authenticated
+  using (
+    exists (
+      select 1 from public.apps a
+      where a.id = app_events.app_id and a.uploader_id = auth.uid()
+    )
+  );
+
+create index if not exists idx_app_events_app_kind_time
+  on public.app_events(app_id, kind, created_at desc);
+create index if not exists idx_app_events_time
+  on public.app_events(created_at);
+
+-- raw events are kept for 180 days; callable by the service role only
+create or replace function public.purge_app_events()
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  v_deleted integer;
+begin
+  delete from public.app_events
+    where created_at < now() - interval '180 days';
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end;
+$$;
+
+revoke all on function public.purge_app_events() from public;
+revoke execute on function public.purge_app_events() from anon, authenticated;
+grant execute on function public.purge_app_events() to service_role;
+
+-- aggregate dashboard data for the signed-in listing owner
+create or replace function public.app_analytics(p_app uuid default null, p_days integer default 30)
+returns jsonb language plpgsql security invoker set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_days integer;
+  v_from timestamptz;
+  v_prev_from timestamptz;
+  v_result jsonb;
+begin
+  if v_uid is null then return null; end if;
+
+  v_days := greatest(1, least(coalesce(p_days, 30), 3650));
+  v_from := date_trunc('day', now()) - ((v_days - 1) || ' days')::interval;
+  v_prev_from := v_from - (v_days || ' days')::interval;
+
+  if p_app is not null and not exists (
+    select 1 from public.apps where id = p_app and uploader_id = v_uid
+  ) then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'range', jsonb_build_object(
+      'days', v_days,
+      'from', v_from,
+      'to', now()
+    ),
+    'totals', (
+      select jsonb_build_object(
+        'views', count(*) filter (where e.kind = 'view'),
+        'clicks', count(*) filter (where e.kind = 'click'),
+        'uniques', count(distinct e.visitor_hash)
+      )
+      from public.app_events e
+      join public.apps a on a.id = e.app_id
+      where a.uploader_id = v_uid
+        and (p_app is null or e.app_id = p_app)
+        and e.created_at >= v_from
+        and not e.is_bot
+    ),
+    'previous', (
+      select jsonb_build_object(
+        'views', count(*) filter (where e.kind = 'view'),
+        'clicks', count(*) filter (where e.kind = 'click'),
+        'uniques', count(distinct e.visitor_hash)
+      )
+      from public.app_events e
+      join public.apps a on a.id = e.app_id
+      where a.uploader_id = v_uid
+        and (p_app is null or e.app_id = p_app)
+        and e.created_at >= v_prev_from
+        and e.created_at < v_from
+        and not e.is_bot
+    ),
+    'daily', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'day', to_char(d.day, 'YYYY-MM-DD'),
+        'views', coalesce(s.views, 0),
+        'clicks', coalesce(s.clicks, 0),
+        'uniques', coalesce(s.uniques, 0)
+      ) order by d.day)
+      from generate_series(v_from, date_trunc('day', now()), interval '1 day') as d(day)
+      left join (
+        select
+          date_trunc('day', e.created_at) as day,
+          count(*) filter (where e.kind = 'view') as views,
+          count(*) filter (where e.kind = 'click') as clicks,
+          count(distinct e.visitor_hash) as uniques
+        from public.app_events e
+        join public.apps a on a.id = e.app_id
+        where a.uploader_id = v_uid
+          and (p_app is null or e.app_id = p_app)
+          and e.created_at >= v_from
+          and not e.is_bot
+        group by 1
+      ) s on s.day = d.day
+    ), '[]'::jsonb),
+    'apps', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', a.id,
+        'title', a.title,
+        'status', a.status,
+        'icon_path', a.icon_path,
+        'created_at', a.created_at,
+        'views', coalesce(s.views, 0),
+        'clicks', coalesce(s.clicks, 0),
+        'uniques', coalesce(s.uniques, 0),
+        'last_click_at', s.last_click_at
+      ) order by coalesce(s.clicks, 0) desc, a.created_at desc)
+      from public.apps a
+      left join (
+        select
+          e.app_id,
+          count(*) filter (where e.kind = 'view') as views,
+          count(*) filter (where e.kind = 'click') as clicks,
+          count(distinct e.visitor_hash) as uniques,
+          max(e.created_at) filter (where e.kind = 'click') as last_click_at
+        from public.app_events e
+        where e.created_at >= v_from and not e.is_bot
+        group by e.app_id
+      ) s on s.app_id = a.id
+      where a.uploader_id = v_uid
+        and (p_app is null or a.id = p_app)
+    ), '[]'::jsonb),
+    'sources', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'source', x.source,
+        'views', x.views,
+        'clicks', x.clicks
+      ) order by x.views + x.clicks desc)
+      from (
+        select
+          e.source,
+          count(*) filter (where e.kind = 'view') as views,
+          count(*) filter (where e.kind = 'click') as clicks
+        from public.app_events e
+        join public.apps a on a.id = e.app_id
+        where a.uploader_id = v_uid
+          and (p_app is null or e.app_id = p_app)
+          and e.created_at >= v_from
+          and not e.is_bot
+        group by e.source
+      ) x
+    ), '[]'::jsonb),
+    'referrers', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'host', x.host,
+        'views', x.views,
+        'clicks', x.clicks
+      ) order by x.total desc)
+      from (
+        select
+          e.referrer_host as host,
+          count(*) filter (where e.kind = 'view') as views,
+          count(*) filter (where e.kind = 'click') as clicks,
+          count(*) as total
+        from public.app_events e
+        join public.apps a on a.id = e.app_id
+        where a.uploader_id = v_uid
+          and (p_app is null or e.app_id = p_app)
+          and e.created_at >= v_from
+          and not e.is_bot
+          and e.source = 'external'
+          and e.referrer_host is not null
+        group by e.referrer_host
+        order by total desc
+        limit 8
+      ) x
+    ), '[]'::jsonb),
+    'countries', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'country', x.country,
+        'views', x.views,
+        'clicks', x.clicks
+      ) order by x.views + x.clicks desc)
+      from (
+        select
+          e.country,
+          count(*) filter (where e.kind = 'view') as views,
+          count(*) filter (where e.kind = 'click') as clicks
+        from public.app_events e
+        join public.apps a on a.id = e.app_id
+        where a.uploader_id = v_uid
+          and (p_app is null or e.app_id = p_app)
+          and e.created_at >= v_from
+          and not e.is_bot
+          and e.country is not null
+        group by e.country
+        order by count(*) desc
+        limit 8
+      ) x
+    ), '[]'::jsonb),
+    'devices', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'device', x.device,
+        'views', x.views,
+        'clicks', x.clicks
+      ) order by x.views + x.clicks desc)
+      from (
+        select
+          e.device,
+          count(*) filter (where e.kind = 'view') as views,
+          count(*) filter (where e.kind = 'click') as clicks
+        from public.app_events e
+        join public.apps a on a.id = e.app_id
+        where a.uploader_id = v_uid
+          and (p_app is null or e.app_id = p_app)
+          and e.created_at >= v_from
+          and not e.is_bot
+          and e.device is not null
+        group by e.device
+      ) x
+    ), '[]'::jsonb),
+    'campaigns', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'source', x.utm_source,
+        'medium', x.utm_medium,
+        'campaign', x.utm_campaign,
+        'views', x.views,
+        'clicks', x.clicks
+      ) order by x.views + x.clicks desc)
+      from (
+        select
+          e.utm_source,
+          e.utm_medium,
+          e.utm_campaign,
+          count(*) filter (where e.kind = 'view') as views,
+          count(*) filter (where e.kind = 'click') as clicks
+        from public.app_events e
+        join public.apps a on a.id = e.app_id
+        where a.uploader_id = v_uid
+          and (p_app is null or e.app_id = p_app)
+          and e.created_at >= v_from
+          and not e.is_bot
+          and e.utm_source is not null
+        group by e.utm_source, e.utm_medium, e.utm_campaign
+        order by count(*) desc
+        limit 8
+      ) x
+    ), '[]'::jsonb)
+  ) into v_result;
+
+  return v_result;
+end;
+$$;

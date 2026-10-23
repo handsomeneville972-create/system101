@@ -14,6 +14,7 @@ import {
   COMPANY_NAV,
   CONTRIBUTE_NAV,
   NAV_LINKS,
+  WORK_NAV,
   type NavItem,
 } from "@/lib/nav";
 import { cn } from "@/lib/cn";
@@ -276,6 +277,13 @@ export function AppSidebar({ account }: { account: ReactNode }) {
             links={NAV_LINKS}
             pathname={pathname}
             collapsed={collapsed}
+          />
+          <SidebarSection
+            title="Your work"
+            links={WORK_NAV}
+            pathname={pathname}
+            collapsed={collapsed}
+            divider
           />
           <SidebarSection
             title="Contribute"

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ViewBeacon } from "@/components/apps/ViewBeacon";
 import { getUser } from "@/lib/auth";
 import { appDetail } from "@/lib/data/apps";
 import { removeApp } from "@/lib/actions/apps";
@@ -9,17 +10,34 @@ export const instant = false;
 
 export default async function AppPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   const app = await appDetail(id);
   const user = await getUser();
   if (!app) notFound();
   if (app.status !== "published" && app.uploader_id !== user?.id) notFound();
 
+  const forwarded = new URLSearchParams();
+  for (const key of ["utm_source", "utm_medium", "utm_campaign"]) {
+    const value = query[key];
+    if (typeof value === "string" && value.trim()) {
+      forwarded.set(key, value.trim().slice(0, 80));
+    }
+  }
+  const trackedHref = (target: "website" | "repo") => {
+    const link = new URLSearchParams(forwarded);
+    link.set("target", target);
+    return `/apps/${app.id}/click?${link.toString()}`;
+  };
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
+      {app.status === "published" && <ViewBeacon appId={app.id} />}
       <Link href="/apps" className="text-xs text-zinc-500 hover:text-zinc-300">
         ← Community Apps
       </Link>
@@ -55,7 +73,7 @@ export default async function AppPage({
           <div className="mt-4">
             {(app.website_url || app.repo_url) && (
               <a
-                href={app.website_url || app.repo_url || "#"}
+                href={trackedHref("website")}
                 target="_blank"
                 rel="noopener"
                 className="btn-pill inline-flex items-center gap-2 bg-white px-6 py-2.5 text-sm font-medium text-black"
@@ -64,12 +82,20 @@ export default async function AppPage({
               </a>
             )}
             {app.is_uploader && (
-              <form action={removeApp} className="mt-3">
-                <input type="hidden" name="app_id" value={app.id} />
-                <button className="text-xs text-zinc-500 hover:text-red-400">
-                  Remove listing
-                </button>
-              </form>
+              <div className="mt-3 flex items-center gap-4">
+                <Link
+                  href={`/dashboard/apps?app=${app.id}`}
+                  className="text-xs text-zinc-400 hover:text-white"
+                >
+                  View stats
+                </Link>
+                <form action={removeApp}>
+                  <input type="hidden" name="app_id" value={app.id} />
+                  <button className="text-xs text-zinc-500 hover:text-red-400">
+                    Remove listing
+                  </button>
+                </form>
+              </div>
             )}
           </div>
 
@@ -104,7 +130,12 @@ export default async function AppPage({
             {app.repo_url && (
               <li>
                 Repository:{" "}
-                <a href={app.repo_url} target="_blank" rel="noopener" className="text-zinc-300 underline">
+                <a
+                  href={trackedHref("repo")}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-zinc-300 underline"
+                >
                   {app.repo_url}
                 </a>
               </li>

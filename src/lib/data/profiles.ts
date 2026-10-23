@@ -1,6 +1,7 @@
 import { interestLabel } from "@/lib/domain";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
+import { appsByUploader, type AppListItem } from "@/lib/data/apps";
 import { listEbooks, type EbookListItem } from "@/lib/data/ebooks";
 
 export type ProfileGroup = {
@@ -21,6 +22,7 @@ export type PublicProfile = {
   goals: string | null;
   created_at: string;
   groups: ProfileGroup[];
+  apps: AppListItem[];
   ebooks: EbookListItem[];
 };
 
@@ -50,12 +52,13 @@ export async function profileById(id: string): Promise<PublicProfile | null> {
     .maybeSingle();
   if (!data) return null;
 
-  const [{ data: memberships }, ebooks, avatarUrl] = await Promise.all([
+  const [{ data: memberships }, ebooks, apps, avatarUrl] = await Promise.all([
     sb
       .from("group_members")
       .select("role, groups(id, slug, name, interest, active)")
       .eq("user_id", id),
     listEbooks("all", 6, id),
+    appsByUploader(id, 6),
     signedAvatar(data.avatar_url ?? null),
   ]);
 
@@ -77,6 +80,7 @@ export async function profileById(id: string): Promise<PublicProfile | null> {
     goals: (data.goals as string | null) ?? null,
     created_at: data.created_at as string,
     groups,
+    apps,
     ebooks,
   };
 }

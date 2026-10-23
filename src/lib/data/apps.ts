@@ -35,7 +35,7 @@ function nameOf(p: ProfileJoin): string | null {
   return v?.display_name ?? null;
 }
 
-async function signPaths(bucket: string, paths: string[]): Promise<Record<string, string>> {
+export async function signPaths(bucket: string, paths: string[]): Promise<Record<string, string>> {
   const uniq = Array.from(new Set(paths.filter((p): p is string => !!p)));
   if (uniq.length === 0) return {};
   const admin = supabaseAdmin();
@@ -47,18 +47,10 @@ async function signPaths(bucket: string, paths: string[]): Promise<Record<string
   return map;
 }
 
-export async function listApps(limit = 60): Promise<AppListItem[]> {
-  const sb = supabasePublic();
-  const { data } = await sb
-    .from("apps")
-    .select(
-      "id,title,tagline,description,developer_bio,category,tags,icon_path,created_at,uploader_id,profiles(display_name)"
-    )
-    .eq("status", "published")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+const APP_CARD_FIELDS =
+  "id,title,tagline,description,developer_bio,category,tags,icon_path,created_at,uploader_id,profiles(display_name)";
 
-  const rows = (data ?? []) as Record<string, unknown>[];
+async function withIcons(rows: Record<string, unknown>[]): Promise<AppListItem[]> {
   const icons = await signPaths(
     "app-icons",
     rows.map((r) => (r.icon_path as string | null) ?? "").filter(Boolean)
@@ -80,6 +72,34 @@ export async function listApps(limit = 60): Promise<AppListItem[]> {
       uploader_id: (r.uploader_id as string | null) ?? null,
     };
   });
+}
+
+export async function listApps(limit = 60): Promise<AppListItem[]> {
+  const sb = supabasePublic();
+  const { data } = await sb
+    .from("apps")
+    .select(APP_CARD_FIELDS)
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return withIcons((data ?? []) as Record<string, unknown>[]);
+}
+
+export async function appsByUploader(
+  uploaderId: string,
+  limit = 6
+): Promise<AppListItem[]> {
+  const sb = supabasePublic();
+  const { data } = await sb
+    .from("apps")
+    .select(APP_CARD_FIELDS)
+    .eq("uploader_id", uploaderId)
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return withIcons((data ?? []) as Record<string, unknown>[]);
 }
 
 export async function appDetail(id: string): Promise<AppDetail | null> {

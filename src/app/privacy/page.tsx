@@ -22,6 +22,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
       "Payments: for paid books and donations we keep the transaction reference, amount, status and the email used, processed by Paystack.",
       "Waitlist: if you ask to be notified about the desktop apps, we store your email and which list you joined.",
       "Downloads: we issue time-limited signed links to files, and we log that a download was issued.",
+      "App analytics: if you publish an app, we record aggregate listing events (views, outbound clicks, country, device, referring site and campaign tags) tied to a daily rotating anonymous hash. We never store the raw IP address or browser string for analytics.",
       "Technical: server logs such as IP address, browser and timestamps, kept for security and reliability.",
     ],
   },
@@ -31,6 +32,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
       "To run the service: accounts, groups, votes, uploads, downloads and payments.",
       "To send you the messages the service owes you: sign-in links and, if you asked for them, launch notifications. We do not send marketing email.",
       "To keep the community safe: investigating reports, fraud and abuse.",
+      "To show developers aggregate traffic on their own app listings. These analytics are first-party, cookie-free and never used for advertising.",
       "To understand what works, in aggregate only.",
     ],
   },
@@ -55,7 +57,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "Cookies",
     body: [
-      "We use one essential cookie family: the session cookie that keeps you signed in. We do not run advertising trackers, and we do not build profiles across other websites.",
+      "We use one essential cookie family: the session cookie that keeps you signed in. App analytics are aggregate and cookie-free; they use a daily rotating anonymous hash, not a stored identifier. We do not run advertising trackers, and we do not build profiles across other websites.",
     ],
   },
   {
@@ -71,7 +73,7 @@ export default function Privacy() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Privacy</h1>
-      <p className="mt-2 text-sm text-zinc-400">Last updated: 22 October 2026</p>
+      <p className="mt-2 text-sm text-zinc-400">Last updated: 23 October 2026</p>
 
       <div className="mt-6 space-y-4">
         {SECTIONS.map((s) => (

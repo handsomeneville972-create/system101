@@ -13,7 +13,7 @@ select table_name from information_schema.tables where table_schema = 'public' o
 select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' order by 1;
 ```
 
-Expect 16 tables and 16 functions.
+Expect 17 tables and 18 functions.
 
 ## 2. Supabase — Authentication URLs
 
@@ -45,10 +45,11 @@ Settings → Environment Variables, for **Production** and **Preview**:
 | `NEXT_PUBLIC_SITE_URL` | `https://system101.network` |
 | `PLATFORM_SPLIT_PERCENT` | `10` |
 | `APP_LISTING_FEE_CENTS` | `499` ($4.99 developer-paid app listing fee) |
+| `ANALYTICS_SALT` | random 32+ char string — server only; salts anonymous app analytics hashes |
 | `DONATION_EMAIL` | optional, fallback `support@001system.dev` |
 
 Rules:
-- Never prefix `SUPABASE_SERVICE_ROLE_KEY` or `PAYSTACK_SECRET_KEY` with `NEXT_PUBLIC_`.
+- Never prefix `SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY` or `ANALYTICS_SALT` with `NEXT_PUBLIC_`.
 - `NEXT_PUBLIC_*` values are inlined at build time — redeploy after any change.
 - Keep one canonical origin (apex vs `www`) across the domain setting, the Supabase allowlist, and `NEXT_PUBLIC_SITE_URL`.
 
@@ -72,6 +73,7 @@ Rules:
 8. `/decourse/upload` → YouTube/Vimeo link + optional PDF notes → course appears on `/decourse`; the detail page embeds the player and the notes download redirects to a signed URL. Free course uploads work now; the $5 paid tier is not built.
 9. Trust flows: direct self-join is denied; join request appears only while pending and can be canceled; one vote of two stays pending; members can leave and the group shrinks; invites are single-use and the group activates only after 2 distinct members join; leader cannot consume an own invite; returning magic-link sign-in goes straight to `/home`; a paid buyer can still download a removed book.
 10. `/apps/publish` → icon + optional screenshots + optional developer bio → draft listing → `/apps/publish/checkout/<id>` → Paystack $4.99 → webhook flips the listing to `published` → appears on `/apps`; `/apps/<id>` shows bio, screenshots and external Visit link. Direct DB writes cannot publish a listing (trigger forces `draft`).
+11. App analytics: a published listing records a view on the detail page and a click through `/apps/<id>/click`; `/dashboard/apps` shows the owner views/clicks/CTR, breakdowns and CSV export. Duplicate events inside 5 minutes, owner clicks and bots are excluded; `/u/<id>` shows published apps plus an owner-only 30-day summary.
 
 ## 6. Troubleshooting
 

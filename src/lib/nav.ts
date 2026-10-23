@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   BookOpen,
   BookUp,
   FileUp,
@@ -28,6 +29,10 @@ export const NAV_LINKS: NavItem[] = [
   { href: "/suggy", label: "Suggy", icon: Lightbulb },
   { href: "/decourse", label: "De-Course", icon: GraduationCap },
   { href: "/apps", label: "Apps", icon: LayoutGrid },
+];
+
+export const WORK_NAV: NavItem[] = [
+  { href: "/dashboard/apps", label: "My apps", icon: BarChart3 },
 ];
 
 export const CONTRIBUTE_NAV: NavItem[] = [
