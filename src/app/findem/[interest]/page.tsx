@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PROFESSIONS } from "@/lib/domain";
-import { groupsByProfession } from "@/lib/data/groups";
+import { INTERESTS } from "@/lib/domain";
+import { groupsByInterest } from "@/lib/data/groups";
 
 export const instant = false;
 
-export default async function ProfessionPage({
+export default async function InterestPage({
   params,
 }: {
-  params: Promise<{ profession: string }>;
+  params: Promise<{ interest: string }>;
 }) {
-  const { profession } = await params;
-  const meta = PROFESSIONS.find((p) => p.slug === profession);
+  const { interest } = await params;
+  const meta = INTERESTS.find((p) => p.slug === interest);
   if (!meta) notFound();
-  const groups = await groupsByProfession(profession);
+  const groups = await groupsByInterest(interest);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -22,7 +22,10 @@ export default async function ProfessionPage({
         Groups · Enter with reason + vote · Or create (needs 2 members).
       </p>
       <div className="mt-6 flex gap-3">
-        <Link href="/groups/new" className="btn-pill bg-white px-5 py-2.5 text-sm text-black">
+        <Link
+          href={`/groups/new?interest=${interest}`}
+          className="btn-pill bg-white px-5 py-2.5 text-sm text-black"
+        >
           Create group
         </Link>
         <Link href="/home" className="btn-pill border hairline px-5 py-2.5 text-sm">

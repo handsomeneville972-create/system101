@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { PROFESSIONS } from "@/lib/domain";
+import { INTERESTS } from "@/lib/domain";
 import { createGroup, type FormState } from "@/lib/actions/groups";
 
 const initial: FormState = {};
@@ -19,7 +19,7 @@ function Submit() {
   );
 }
 
-export function CreateGroupForm() {
+export function CreateGroupForm({ defaultInterest = "" }: { defaultInterest?: string }) {
   const [state, action] = useActionState(createGroup, initial);
   return (
     <form action={action} className="card mt-6 space-y-4 p-6">
@@ -30,15 +30,15 @@ export function CreateGroupForm() {
         className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
       />
       <select
-        name="profession"
+        name="interest"
         required
-        defaultValue=""
+        defaultValue={defaultInterest}
         className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
       >
         <option value="" disabled>
-          Pick craft
+          Pick an interest
         </option>
-        {PROFESSIONS.map((p) => (
+        {INTERESTS.map((p) => (
           <option key={p.slug} value={p.slug}>
             {p.label}
           </option>

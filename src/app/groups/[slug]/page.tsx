@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { groupBySlug } from "@/lib/data/groups";
 import { groupSignals } from "@/lib/data/suggy";
 import { getUser } from "@/lib/auth";
+import { interestLabel } from "@/lib/domain";
 import { JoinRequestForm } from "@/components/groups/JoinRequestForm";
 import { VotePanel } from "@/components/groups/VotePanel";
 import { InviteLinks } from "@/components/groups/InviteLinks";
@@ -44,8 +45,8 @@ export default async function GroupPage({
         </span>
       </div>
       <p className="mt-1 text-sm text-zinc-400">
-        {memberCount} {memberCount === 1 ? "member" : "members"} · Enter with reason. Members vote
-        80% in 48h.
+        {interestLabel(group.interest) ?? "Interest"} · {memberCount}{" "}
+        {memberCount === 1 ? "member" : "members"} · Enter with reason. Members vote 80% in 48h.
       </p>
 
       {created && group.isLeader && (

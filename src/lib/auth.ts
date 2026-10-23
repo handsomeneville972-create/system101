@@ -4,7 +4,7 @@ export type Profile = {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
-  profession: string | null;
+  interest: string | null;
   bio: string | null;
   goals: string | null;
   donate_surfaces: Record<string, boolean> | null;
@@ -30,7 +30,7 @@ export async function getProfile(): Promise<Profile | null> {
   const sb = await supabaseServer();
   const { data } = await sb
     .from("profiles")
-    .select("id, display_name, avatar_url, profession, bio, goals, donate_surfaces")
+    .select("id, display_name, avatar_url, interest, bio, goals, donate_surfaces")
     .eq("id", user.id)
     .maybeSingle();
   return (data as Profile | null) ?? null;

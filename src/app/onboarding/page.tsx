@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { PROFESSIONS } from "@/lib/domain";
+import { INTERESTS } from "@/lib/domain";
 import { completeOnboarding } from "@/lib/actions/auth";
 import { getUser } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabase-server";
@@ -13,15 +13,15 @@ export default async function Onboarding() {
   const sb = await supabaseServer();
   const { data: profile } = await sb
     .from("profiles")
-    .select("display_name, profession, goals")
+    .select("display_name, interest, goals")
     .eq("id", user.id)
     .maybeSingle();
-  if (profile?.profession) redirect("/home");
+  if (profile?.interest) redirect("/home");
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Onboarding</h1>
-      <p className="mt-1 text-sm text-zinc-400">Pick craft. Tell goals.</p>
+      <p className="mt-1 text-sm text-zinc-400">Pick an interest. Tell goals.</p>
       <form action={completeOnboarding} className="card mt-6 space-y-4 p-6">
         <input
           name="display_name"
@@ -31,15 +31,15 @@ export default async function Onboarding() {
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
         />
         <select
-          name="profession"
+          name="interest"
           required
-          defaultValue={profile?.profession ?? ""}
+          defaultValue={profile?.interest ?? ""}
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
         >
           <option value="" disabled>
-            Pick craft
+            Pick an interest
           </option>
-          {PROFESSIONS.map((p) => (
+          {INTERESTS.map((p) => (
             <option key={p.slug} value={p.slug}>
               {p.label}
             </option>

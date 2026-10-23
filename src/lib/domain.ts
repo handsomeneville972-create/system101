@@ -1,25 +1,36 @@
-export type ProfessionSlug =
-  | "traders"
-  | "dropshippers"
-  | "creators"
-  | "startup-founders"
-  | "founders"
-  | "musicians"
-  | "affiliates"
-  | "engineers"
-  | "developers";
+export type InterestSlug =
+  | "business"
+  | "trading"
+  | "tech"
+  | "content"
+  | "design"
+  | "music"
+  | "fitness"
+  | "books"
+  | "gaming"
+  | "marketing"
+  | "mindset"
+  | "faith";
 
-export const PROFESSIONS: { slug: ProfessionSlug; label: string; blurb: string }[] = [
-  { slug: "traders", label: "Traders", blurb: "Markets. Discipline." },
-  { slug: "dropshippers", label: "Drop-shippers", blurb: "Stores. Systems." },
-  { slug: "creators", label: "Content creators", blurb: "Publish. Grow." },
-  { slug: "startup-founders", label: "Startup founders", blurb: "Build. Ship." },
-  { slug: "founders", label: "Founders", blurb: "Lead. Endure." },
-  { slug: "musicians", label: "Musicians", blurb: "Sound. Craft." },
-  { slug: "affiliates", label: "Affiliate marketers", blurb: "Traffic. Convert." },
-  { slug: "engineers", label: "Engineers", blurb: "Solve. Scale." },
-  { slug: "developers", label: "Developers", blurb: "Code. Launch." },
+export const INTERESTS: { slug: InterestSlug; label: string; blurb: string }[] = [
+  { slug: "business", label: "Business & Startups", blurb: "Build. Launch. Grow." },
+  { slug: "trading", label: "Trading & Investing", blurb: "Markets. Discipline. Risk." },
+  { slug: "tech", label: "Tech & Coding", blurb: "Learn. Build. Ship." },
+  { slug: "content", label: "Content Creation", blurb: "Publish. Audience. Grow." },
+  { slug: "design", label: "Art & Design", blurb: "Make. Refine. Show." },
+  { slug: "music", label: "Music", blurb: "Create. Perform. Listen." },
+  { slug: "fitness", label: "Fitness & Health", blurb: "Train. Fuel. Recover." },
+  { slug: "books", label: "Books & Learning", blurb: "Read. Study. Apply." },
+  { slug: "gaming", label: "Gaming", blurb: "Play. Compete. Connect." },
+  { slug: "marketing", label: "Marketing & Growth", blurb: "Reach. Convert. Retain." },
+  { slug: "mindset", label: "Personal Growth", blurb: "Focus. Habits. Progress." },
+  { slug: "faith", label: "Faith & Purpose", blurb: "Believe. Serve. Grow." },
 ];
+
+export function interestLabel(slug: string | null | undefined): string | null {
+  if (!slug) return null;
+  return INTERESTS.find((i) => i.slug === slug)?.label ?? slug;
+}
 
 // 80% supermajority, 48h window, leader tie-break
 export const VOTE_WINDOW_HOURS = 48;

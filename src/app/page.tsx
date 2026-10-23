@@ -7,7 +7,7 @@ import { getUser } from "@/lib/auth";
 export const instant = false;
 
 const features = [
-  { icon: Users, title: "Find'em", desc: "Groups by craft. Apply. Vote. Belong." },
+  { icon: Users, title: "Find'em", desc: "Groups by interest. Apply. Vote. Belong." },
   { icon: BookOpen, title: "Ebooku", desc: "Upload books. Free or paid. Reviews." },
   { icon: Lightbulb, title: "Suggy", desc: "Group signals. Upvote. Ship." },
   { icon: AppWindow, title: "System Apps", desc: "Windows + Mac. Coming soon." },

@@ -16,7 +16,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     heading: "What we collect",
     body: [
       "Account and sign-in: your email address. We send a magic sign-in link instead of storing a password.",
-      "Profile: the display name, profession, bio and goals you enter, plus an avatar image if you upload one.",
+      "Profile: the display name, interest, bio and goals you enter, plus an avatar image if you upload one.",
       "Community activity: the groups you join, join requests you send or receive, votes you cast (including any reason you leave for a no vote), signal up and down votes, and the invite links created inside your groups.",
       "Content: books you upload or buy, the descriptions and prices you set, reviews and ratings you write, and courses you upload or watch.",
       "Payments: for paid books and donations we keep the transaction reference, amount, status and the email used, processed by Paystack.",

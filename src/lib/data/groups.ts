@@ -6,28 +6,28 @@ export type GroupRow = {
   id: string;
   slug: string;
   name: string;
-  profession: string;
+  interest: string;
   active: boolean;
   created_at: string;
   member_count: number;
 };
 
-export async function professionCounts(): Promise<Record<string, number>> {
+export async function interestCounts(): Promise<Record<string, number>> {
   const sb = supabasePublic();
-  const { data } = await sb.from("groups").select("profession");
+  const { data } = await sb.from("groups").select("interest");
   const counts: Record<string, number> = {};
-  (data ?? []).forEach((g: { profession: string }) => {
-    counts[g.profession] = (counts[g.profession] ?? 0) + 1;
+  (data ?? []).forEach((g: { interest: string }) => {
+    counts[g.interest] = (counts[g.interest] ?? 0) + 1;
   });
   return counts;
 }
 
-export async function groupsByProfession(slug: string): Promise<GroupRow[]> {
+export async function groupsByInterest(slug: string): Promise<GroupRow[]> {
   const sb = supabasePublic();
   const { data } = await sb
     .from("groups")
-    .select("id, slug, name, profession, active, created_at, group_members(count)")
-    .eq("profession", slug)
+    .select("id, slug, name, interest, active, created_at, group_members(count)")
+    .eq("interest", slug)
     .order("active", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -35,7 +35,7 @@ export async function groupsByProfession(slug: string): Promise<GroupRow[]> {
     id: g.id as string,
     slug: g.slug as string,
     name: g.name as string,
-    profession: g.profession as string,
+    interest: g.interest as string,
     active: g.active as boolean,
     created_at: g.created_at as string,
     member_count:
@@ -49,7 +49,7 @@ export type GroupDetail = {
   id: string;
   slug: string;
   name: string;
-  profession: string;
+  interest: string;
   rules: string | null;
   active: boolean;
   leader_id: string | null;
@@ -80,7 +80,7 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   const sb = await supabaseServer();
   const { data: group } = await sb
     .from("groups")
-    .select("id, slug, name, profession, rules, active, leader_id")
+    .select("id, slug, name, interest, rules, active, leader_id")
     .eq("slug", slug)
     .maybeSingle();
   if (!group) return null;
@@ -194,7 +194,7 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
 
 export type MyGroup = {
   role: string;
-  group: { id: string; slug: string; name: string; profession: string; active: boolean } | null;
+  group: { id: string; slug: string; name: string; interest: string; active: boolean } | null;
 };
 
 export async function myGroups(): Promise<MyGroup[]> {
@@ -203,7 +203,7 @@ export async function myGroups(): Promise<MyGroup[]> {
   const sb = await supabaseServer();
   const { data } = await sb
     .from("group_members")
-    .select("role, groups(id, slug, name, profession, active)")
+    .select("role, groups(id, slug, name, interest, active)")
     .eq("user_id", user.id);
   return (data ?? []).map((row: Record<string, unknown>) => ({
     role: row.role as string,

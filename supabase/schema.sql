@@ -8,18 +8,80 @@
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  display_name text, avatar_url text, profession text, bio text,
+  display_name text, avatar_url text, interest text, bio text,
   goals text,
   created_at timestamptz default now()
 );
 
 create table if not exists public.groups (
   id uuid primary key default gen_random_uuid(),
-  slug text unique not null, name text not null, profession text not null,
+  slug text unique not null, name text not null, interest text not null,
   leader_id uuid references public.profiles(id) on delete set null,
   rules text, active boolean default false,
   created_at timestamptz default now()
 );
+
+-- 1b) profession -> interest rename + legacy value backfill (idempotent)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles' and column_name = 'profession'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles' and column_name = 'interest'
+  ) then
+    alter table public.profiles rename column profession to interest;
+  end if;
+
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'groups' and column_name = 'profession'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'groups' and column_name = 'interest'
+  ) then
+    alter table public.groups rename column profession to interest;
+  end if;
+end $$;
+
+update public.profiles set interest = case interest
+  when 'traders' then 'trading'
+  when 'dropshippers' then 'business'
+  when 'creators' then 'content'
+  when 'startup-founders' then 'business'
+  when 'founders' then 'business'
+  when 'musicians' then 'music'
+  when 'affiliates' then 'marketing'
+  when 'engineers' then 'tech'
+  when 'developers' then 'tech'
+  else interest
+end
+where interest in (
+  'traders','dropshippers','creators','startup-founders','founders',
+  'musicians','affiliates','engineers','developers'
+);
+
+update public.groups set interest = case interest
+  when 'traders' then 'trading'
+  when 'dropshippers' then 'business'
+  when 'creators' then 'content'
+  when 'startup-founders' then 'business'
+  when 'founders' then 'business'
+  when 'musicians' then 'music'
+  when 'affiliates' then 'marketing'
+  when 'engineers' then 'tech'
+  when 'developers' then 'tech'
+  else interest
+end
+where interest in (
+  'traders','dropshippers','creators','startup-founders','founders',
+  'musicians','affiliates','engineers','developers'
+);
+
+drop index if exists public.idx_groups_profession;
+
+notify pgrst, 'reload schema';
 
 create table if not exists public.group_members (
   group_id uuid references public.groups(id) on delete cascade,
@@ -515,7 +577,7 @@ $$;
 -- 6) indexes
 -- =========================================================
 
-create index if not exists idx_groups_profession on public.groups(profession);
+create index if not exists idx_groups_interest on public.groups(interest);
 create index if not exists idx_join_requests_group on public.join_requests(group_id, status);
 create index if not exists idx_suggies_status on public.suggies(status);
 create index if not exists idx_suggies_group_status on public.suggies(group_id, status);

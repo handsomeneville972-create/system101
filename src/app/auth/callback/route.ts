@@ -22,11 +22,11 @@ export async function GET(request: Request) {
 
   const { data: profile } = await sb
     .from("profiles")
-    .select("profession")
+    .select("interest")
     .eq("id", user.id)
     .maybeSingle();
 
   return NextResponse.redirect(
-    `${origin}${profile?.profession ? "/home" : "/onboarding"}`
+    `${origin}${profile?.interest ? "/home" : "/onboarding"}`
   );
 }

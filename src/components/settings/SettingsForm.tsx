@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { saveSettings, type FormState } from "@/lib/actions/settings";
+import { INTERESTS } from "@/lib/domain";
 import type { Profile } from "@/lib/auth";
 import type { DonateSurface } from "@/lib/donate";
 
@@ -40,12 +41,22 @@ export function SettingsForm({ profile }: { profile: Profile | null }) {
           placeholder="Display name"
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
         />
-        <input
-          name="profession"
-          defaultValue={profile?.profession ?? ""}
-          placeholder="Profession"
+        <select
+          name="interest"
+          required
+          defaultValue={profile?.interest ?? ""}
+          aria-label="Interest"
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
-        />
+        >
+          <option value="" disabled>
+            Pick an interest
+          </option>
+          {INTERESTS.map((i) => (
+            <option key={i.slug} value={i.slug}>
+              {i.label}
+            </option>
+          ))}
+        </select>
         <textarea
           name="bio"
           defaultValue={profile?.bio ?? ""}

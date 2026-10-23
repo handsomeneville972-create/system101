@@ -1,4 +1,4 @@
-import { PROFESSIONS } from "@/lib/domain";
+import { interestLabel } from "@/lib/domain";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
 import { listEbooks, type EbookListItem } from "@/lib/data/ebooks";
@@ -6,7 +6,7 @@ import { listEbooks, type EbookListItem } from "@/lib/data/ebooks";
 export type ProfileGroup = {
   slug: string;
   name: string;
-  profession: string;
+  interest: string;
   active: boolean;
 };
 
@@ -15,8 +15,8 @@ export type PublicProfile = {
   display_name: string | null;
   avatar_path: string | null;
   avatar_url: string | null;
-  profession: string | null;
-  profession_label: string | null;
+  interest: string | null;
+  interest_label: string | null;
   bio: string | null;
   goals: string | null;
   created_at: string;
@@ -25,13 +25,13 @@ export type PublicProfile = {
 };
 
 type GroupJoin =
-  | { id: string; slug: string; name: string; profession: string; active: boolean }
-  | { id: string; slug: string; name: string; profession: string; active: boolean }[]
+  | { id: string; slug: string; name: string; interest: string; active: boolean }
+  | { id: string; slug: string; name: string; interest: string; active: boolean }[]
   | null;
 
 function groupOf(g: GroupJoin): ProfileGroup | null {
   const v = Array.isArray(g) ? g[0] : g;
-  return v ? { slug: v.slug, name: v.name, profession: v.profession, active: v.active } : null;
+  return v ? { slug: v.slug, name: v.name, interest: v.interest, active: v.active } : null;
 }
 
 export async function signedAvatar(path: string | null): Promise<string | null> {
@@ -45,7 +45,7 @@ export async function profileById(id: string): Promise<PublicProfile | null> {
   const sb = await supabaseServer();
   const { data } = await sb
     .from("profiles")
-    .select("id, display_name, avatar_url, profession, bio, goals, created_at")
+    .select("id, display_name, avatar_url, interest, bio, goals, created_at")
     .eq("id", id)
     .maybeSingle();
   if (!data) return null;
@@ -53,7 +53,7 @@ export async function profileById(id: string): Promise<PublicProfile | null> {
   const [{ data: memberships }, ebooks, avatarUrl] = await Promise.all([
     sb
       .from("group_members")
-      .select("role, groups(id, slug, name, profession, active)")
+      .select("role, groups(id, slug, name, interest, active)")
       .eq("user_id", id),
     listEbooks("all", 6, id),
     signedAvatar(data.avatar_url ?? null),
@@ -64,17 +64,15 @@ export async function profileById(id: string): Promise<PublicProfile | null> {
     .filter((g): g is ProfileGroup => !!g)
     .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
 
-  const profession = data.profession ?? null;
+  const interest = data.interest ?? null;
 
   return {
     id: data.id as string,
     display_name: (data.display_name as string | null) ?? null,
     avatar_path: (data.avatar_url as string | null) ?? null,
     avatar_url: avatarUrl,
-    profession,
-    profession_label: profession
-      ? PROFESSIONS.find((p) => p.slug === profession)?.label ?? profession
-      : null,
+    interest,
+    interest_label: interestLabel(interest),
     bio: (data.bio as string | null) ?? null,
     goals: (data.goals as string | null) ?? null,
     created_at: data.created_at as string,

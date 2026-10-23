@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
-import { PROFESSIONS } from "@/lib/domain";
+import { INTERESTS } from "@/lib/domain";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -24,14 +24,14 @@ export async function createGroup(_prev: FormState, formData: FormData): Promise
   const sb = await supabaseServer();
 
   const name = String(formData.get("name") ?? "").trim();
-  const profession = String(formData.get("profession") ?? "").trim();
+  const interest = String(formData.get("interest") ?? "").trim();
   const rules = String(formData.get("rules") ?? "").trim();
   const inviteEmails = [formData.get("invite1"), formData.get("invite2")]
     .map((v) => String(v ?? "").trim())
     .filter(Boolean);
 
-  if (!name || !profession) return { error: "Name and craft are required." };
-  if (!PROFESSIONS.some((p) => p.slug === profession)) return { error: "Pick a valid craft." };
+  if (!name || !interest) return { error: "Name and interest are required." };
+  if (!INTERESTS.some((p) => p.slug === interest)) return { error: "Pick a valid interest." };
 
   let slug = slugify(name) || `group-${Date.now().toString(36)}`;
   const { data: existing } = await sb.from("groups").select("id").eq("slug", slug).maybeSingle();
@@ -39,7 +39,7 @@ export async function createGroup(_prev: FormState, formData: FormData): Promise
 
   const { data: group, error } = await sb
     .from("groups")
-    .insert({ slug, name, profession, rules, leader_id: user.id, active: false })
+    .insert({ slug, name, interest, rules, leader_id: user.id, active: false })
     .select("id, slug")
     .single();
   if (error) return { error: error.message };

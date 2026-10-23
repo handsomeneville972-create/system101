@@ -33,7 +33,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold">{profile.display_name ?? "Member"}</h1>
           <p className="mt-1 text-sm text-zinc-400">
-            {profile.profession_label ?? "No craft set"}
+            {profile.interest_label ?? "No interest set"}
           </p>
           <p className="mt-1 text-xs text-zinc-500">Member since {joined(profile.created_at)}</p>
           {isOwn && (

@@ -17,7 +17,7 @@ export default async function HomePage() {
     recentEbooks(3),
   ]);
 
-  if (!profile?.profession) redirect("/onboarding");
+  if (!profile?.interest) redirect("/onboarding");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
