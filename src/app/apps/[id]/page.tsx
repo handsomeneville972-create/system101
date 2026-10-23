@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getUser } from "@/lib/auth";
@@ -24,9 +25,16 @@ export default async function AppPage({
       </Link>
 
       <div className="mt-4 flex gap-5">
-        <div className="h-40 w-40 shrink-0 overflow-hidden rounded-lg border hairline bg-white/5">
+        <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-lg border hairline bg-white/5">
           {app.icon_url ? (
-            <img src={app.icon_url} alt="" className="h-full w-full object-cover" />
+            <Image
+              src={app.icon_url}
+              alt={app.title}
+              fill
+              unoptimized
+              sizes="160px"
+              className="object-cover"
+            />
           ) : (
             <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">
               No icon
@@ -111,7 +119,19 @@ export default async function AppPage({
           <h2 className="text-sm font-medium">Screenshots</h2>
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             {app.screenshot_urls.map((url, i) => (
-              <img key={i} src={url} alt="" className="h-32 w-full rounded-md border hairline object-cover" />
+              <div
+                key={i}
+                className="relative h-32 w-full overflow-hidden rounded-md border hairline"
+              >
+                <Image
+                  src={url}
+                  alt={`${app.title} screenshot ${i + 1}`}
+                  fill
+                  unoptimized
+                  sizes="(min-width: 768px) 33vw, 100vw"
+                  className="object-cover"
+                />
+              </div>
             ))}
           </div>
         </div>

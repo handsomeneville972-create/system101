@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Star } from "lucide-react";
 import type { EbookListItem } from "@/lib/data/ebooks";
@@ -8,9 +9,16 @@ export function EbookCard({ ebook }: { ebook: EbookListItem }) {
 
   return (
     <Link href={`/ebooku/${ebook.id}`} className="card flex gap-4 p-4 hover:bg-white/[0.02]">
-      <div className="h-24 w-16 shrink-0 overflow-hidden rounded-md border hairline bg-white/5">
+      <div className="relative h-24 w-16 shrink-0 overflow-hidden rounded-md border hairline bg-white/5">
         {ebook.cover_url ? (
-          <img src={ebook.cover_url} alt="" className="h-full w-full object-cover" />
+          <Image
+            src={ebook.cover_url}
+            alt={ebook.title}
+            fill
+            unoptimized
+            sizes="64px"
+            className="object-cover"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">
             No cover

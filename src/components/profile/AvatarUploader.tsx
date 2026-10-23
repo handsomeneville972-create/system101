@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { prepareAvatarUpload, setAvatar, removeAvatar } from "@/lib/actions/profile";
@@ -89,9 +90,16 @@ export function AvatarUploader({ currentUrl }: { currentUrl: string | null }) {
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border hairline bg-white/5">
+      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border hairline bg-white/5">
         {shown ? (
-          <img src={shown} alt="" className="h-full w-full object-cover" />
+          <Image
+            src={shown}
+            alt="Avatar preview"
+            fill
+            unoptimized
+            sizes="80px"
+            className="object-cover"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-zinc-600">
             No photo

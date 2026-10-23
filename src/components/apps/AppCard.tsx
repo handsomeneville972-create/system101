@@ -1,11 +1,19 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export function AppCard({ app }: { app: { id: string; title: string; tagline: string | null; icon_url: string | null; category: string | null; tags: string[] | null; author: string | null; created_at: string } }) {
   return (
     <Link href={`/apps/${app.id}`} className="card flex gap-4 p-4 hover:bg-white/[0.02]">
-      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border hairline bg-white/5">
+      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border hairline bg-white/5">
         {app.icon_url ? (
-          <img src={app.icon_url} alt="" className="h-full w-full object-cover" />
+          <Image
+            src={app.icon_url}
+            alt={app.title}
+            fill
+            unoptimized
+            sizes="96px"
+            className="object-cover"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">
             No icon

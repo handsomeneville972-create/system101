@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, Users } from "lucide-react";
@@ -21,9 +22,16 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="flex items-start gap-5">
-        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full border hairline bg-white/5">
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full border hairline bg-white/5">
           {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+            <Image
+              src={profile.avatar_url}
+              alt={profile.display_name ?? "Member"}
+              fill
+              unoptimized
+              sizes="96px"
+              className="object-cover"
+            />
           ) : (
             <div className="flex h-full items-center justify-center text-2xl text-zinc-500">
               {(profile.display_name ?? "M").charAt(0).toUpperCase()}

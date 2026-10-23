@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Download, Star } from "lucide-react";
@@ -39,9 +40,16 @@ export default async function EbookPage({
       )}
 
       <div className="mt-4 flex gap-5">
-        <div className="h-40 w-28 shrink-0 overflow-hidden rounded-lg border hairline bg-white/5">
+        <div className="relative h-40 w-28 shrink-0 overflow-hidden rounded-lg border hairline bg-white/5">
           {ebook.cover_url ? (
-            <img src={ebook.cover_url} alt="" className="h-full w-full object-cover" />
+            <Image
+              src={ebook.cover_url}
+              alt={ebook.title}
+              fill
+              unoptimized
+              sizes="112px"
+              className="object-cover"
+            />
           ) : (
             <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">
               No cover
