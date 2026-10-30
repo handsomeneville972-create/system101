@@ -46,16 +46,17 @@ Slogan: Grow. Audience: aspirational builders, dreamers, goal-oriented community
 
 - 2026-10-31: Share-led copy pass. `$4.99` now appears only on the publish checkout page (fee read from `APP_LISTING_FEE_CENTS`, passed to `PublishPayButton`) and in Terms (new app-listing fee clause); every discovery surface is value-led. CTA "Publish an app" → "Share your app" on `/apps`, `/apps/publish`, `/dashboard/apps` (×3) and `/u/[id]`; draft states → "Finish publishing" (draft banner links to checkout). Upload form says "Only you can see this until you publish. No charge until then." and the submit is "Continue". Landing "System Apps — Coming soon" fixed to live "Apps — Tools built by members. Browse, share, track."; Home/Ebooku/De-Course subtitles de-jargoned; Ebooku upload now leads with "you keep 90% of every sale"; duplicate De-Course footer line removed.
 
+- 2026-10-31: Paystack live keys activated. Keys from the pasted `Paystack;.txt` were written to `.env.local` (the file itself moved out of the repo to `C:\Users\Neville\.keys\paystack-live-keys.txt`) and to Vercel env for all targets: `PAYSTACK_SECRET_KEY` (encrypted), `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` (plain), `APP_LISTING_FEE_CENTS=499`. Live key verified: `/balance` returns KES + USD; `/transaction/initialize` for 499 USD returns a checkout.paystack.com URL and verify shows currency USD / amount 499 / abandoned (not charged). Fast-forwarded `main` to a6099d1 and deployed to production (`dpl_GX7nrzoi9iFoRWKJ22fSUKBRdE9g`); live checks: `/apps` shows the new copy, `/terms` has the fee clause, `/api/checkout/app` 401 unauth, `/api/webhooks/paystack` 401 unsigned. Webhook URL still must be set in the Paystack dashboard (Settings → API Keys & Webhooks) to `https://system101.network/api/webhooks/paystack` — Paystack exposes no API for it.
+
 ## Still TODO
 - Interest rename rollout DONE: prod columns renamed, slug backfill applied (1 profile + 1 group → business), `idx_groups_interest` created, PostgREST reloaded. Deployed 27c742a; prod smoke: `/findem` 200 with 12 interests, `/findem/business` 200 shows TaskNova, `/findem/tech` 200, `/findem/developers` 308 → `/findem/tech`, `/findem/founders` 308 → `/findem/business`, `/groups/tasknova` 200 shows Business & Startups, `/privacy` 200, `/onboarding` 307 to sign-in.
-- Add `ANALYTICS_SALT` (random 32+ chars, server-only) to Vercel env before deploying app analytics.
-- Paystack USD not activated yet (live account, approval pending). Keys still absent: PAYSTACK_SECRET_KEY + NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY → Vercel env + .env.local + webhook URL https://system101.network/api/webhooks/paystack + redeploy. Paid checkout (ebooks + $4.99 app listings) is built but cannot be live-tested until then. Add `APP_LISTING_FEE_CENTS=499` to Vercel env (default 499 if unset).
-- Seller 90% payout ledger/UI (manual for now); Paystack subaccount/split wiring after USD activation.
+- `ANALYTICS_SALT` present in Vercel (production, preview).
+- Paystack live keys + USD verified (2026-10-31). Remaining: set the webhook URL in the Paystack dashboard, then run one real end-to-end paid checkout (ebook + app listing) and confirm the webhook flips status/persists `payments`. Seller 90% payout ledger/UI still manual; Paystack subaccount/split wiring still pending.
 - Rotate Supabase secret key (sb_secret_… seen in chat/keys file) → update Vercel SUPABASE_SERVICE_ROLE_KEY + .env.local
 - Revoke setup tokens (C:\Users\Neville\.keys\system101-setup-tokens.txt) after setup
-- Resend SMTP for magic links: set Supabase Auth SMTP (`smtp.resend.com:465`, user `resend`, API key, `noreply@system101.network`) + SPF/DKIM/DMARC; blocked on credentials/DNS. P5 notifications app layer is built but not deployed.
+- Resend SMTP for magic links: set Supabase Auth SMTP (`smtp.resend.com:465`, user `resend`, API key, `noreply@system101.network`) + SPF/DKIM/DMARC; blocked on credentials/DNS. P5 notifications deployed 2026-10-31 (a6099d1).
 - Hard 404 HTTP statuses for missing dynamic ids (PPR soft-404 caveat)
-- De-Course paid $5 upload (deferred until Paystack USD; no purchase model defined yet)
+- De-Course paid upload (USD live now; no purchase model defined yet)
 - De-Course: lessons/multiple PDFs, reviews, search/filters, cover art (not built)
 
 ## Conventions
