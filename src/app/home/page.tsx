@@ -4,15 +4,18 @@ import { getProfile } from "@/lib/auth";
 import { myGroups } from "@/lib/data/groups";
 import { trendingSignals } from "@/lib/data/suggy";
 import { recentEbooks } from "@/lib/data/ebooks";
+import { homeInbox } from "@/lib/data/notifications";
+import { NeedsYou } from "@/components/home/NeedsYou";
 
 export const instant = false;
 
 export default async function HomePage() {
-  const [profile, groups, trending, ebooks] = await Promise.all([
+  const [profile, groups, trending, ebooks, inbox] = await Promise.all([
     getProfile(),
     myGroups(),
     trendingSignals(),
     recentEbooks(3),
+    homeInbox(),
   ]);
 
   if (!profile?.interest) redirect("/onboarding");
@@ -22,9 +25,11 @@ export default async function HomePage() {
       <h1 className="text-2xl font-semibold">
         {profile?.display_name ? `Hey, ${profile.display_name}` : "Home"}
       </h1>
-      <p className="mt-1 text-sm text-zinc-400">My groups · Trending suggies · New ebooks.</p>
+      <p className="mt-1 text-sm text-zinc-400">Your groups, trending signals, new books.</p>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
+      <NeedsYou inbox={inbox} />
+
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
         <div className="card p-6 md:col-span-1">
           <h2 className="text-sm font-medium">My groups</h2>
           {groups.length === 0 ? (

@@ -128,21 +128,21 @@ export default async function DashboardApps({
             href="/apps/publish"
             className="btn-pill bg-white px-5 py-2 text-sm font-medium text-black"
           >
-            Publish an app
+            Share your app
           </Link>
         </div>
 
         <div className="card mt-6 p-10 text-center">
           <BarChart3 className="mx-auto h-6 w-6 text-zinc-600" aria-hidden />
           <p className="mt-3 text-sm text-zinc-400">No listings yet.</p>
-          <p className="mt-1 text-xs text-zinc-600">
-            Publish an app to start collecting views and clicks.
+          <p className="mt-1 text-xs text-zinc-400">
+            Share your app and see who finds it.
           </p>
           <Link
             href="/apps/publish"
             className="btn-pill mt-4 inline-flex bg-white px-5 py-2 text-sm font-medium text-black"
           >
-            Publish an app
+            Share your app
           </Link>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default async function DashboardApps({
           href="/apps/publish"
           className="btn-pill bg-white px-5 py-2 text-sm font-medium text-black"
         >
-          Publish an app
+          Share your app
         </Link>
       </div>
 

@@ -11,9 +11,9 @@ export default async function PublishSuccessPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Published!</h1>
+      <h1 className="text-2xl font-semibold">You’re live.</h1>
       <p className="mt-1 text-sm text-zinc-400">
-        Your app is now live on the community directory.
+        Your app is in the directory. Share the link anywhere.
       </p>
       {app_id && (
         <div className="mt-6">

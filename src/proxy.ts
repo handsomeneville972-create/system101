@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED = [
   "/home",
+  "/notifications",
   "/groups/new",
   "/onboarding",
   "/settings",

@@ -36,6 +36,16 @@ Slogan: Grow. Audience: aspirational builders, dreamers, goal-oriented community
 
 - 2026-10-23: Donations retired. Removed `DonateButton`, `src/lib/donate.ts`, `/api/checkout/donate`, the `donations` table/policies, `profiles.donate_surfaces`, webhook donation branch, settings toggles, and all surface CTAs. Paystack webhook now handles ebook and app-listing payments only; legal copy no longer mentions donations.
 
+- 2026-10-23: P5 Notifications DONE in app layer (not deployed). Schema §13 applied to prod: `public.notifications` (owner-only read/update RLS, no client insert/delete), `push_notification` (skips self, dedupes by recipient+key, catches failures), `purge_my_notifications` (180-day read retention), and 9 triggers (join request/outcome, member joined, signal open/settled, leadership transfer, ebook purchase, review, app published). UI: `/notifications` All/Unread inbox with mark-all-read and safe row links, sidebar unread badge, home "Needs you" card for pending join requests + unvoted signals. Settlement stays lazy; no Realtime, product email, push, digests or preferences. `tsc`/lint/build green; local prod smoke + RLS insert/delete/update tests passed; P5 test users/group/notifications cleaned from prod.
+
+- 2026-10-31: Removed the YouTube follow link from the sidebar Company block. `SITE.youtube` and the `COMPANY_LINKS` YouTube entry are gone, so no social/follow-us links render anywhere in the app (De-Course YouTube/Vimeo course embeds are unrelated and kept).
+
+- 2026-10-31: Footer retired (component deleted; layout renders none). Global text links consolidated into the sidebar Company block as one icon-free list — About us → Contact → Privacy → Terms — rendered as 36px nav rows with hover highlight; © line kept. `LEGAL_LINKS` merged into `COMPANY_LINKS`, `TextLink.external` dropped. `tsc` clean; dev-server visual check blocked by a Google Fonts fetch timeout (environment, not code).
+
+- 2026-10-31: Top navbar removed. `Navbar.tsx` (logo + wordmark + Sign in/Sign up CTAs) and its `AuthNav.tsx` server component are deleted; the app shell is now sidebar-only on every route (account/auth lives in `SidebarAccount`). `AppHeader` no longer switches on pathname — it always renders the `md:hidden` sticky bar with the sidebar `MenuButton`, so mobile keeps a nav entry point on `/`, `/privacy`, `/terms` and `/auth/*`.
+
+- 2026-10-31: Share-led copy pass. `$4.99` now appears only on the publish checkout page (fee read from `APP_LISTING_FEE_CENTS`, passed to `PublishPayButton`) and in Terms (new app-listing fee clause); every discovery surface is value-led. CTA "Publish an app" → "Share your app" on `/apps`, `/apps/publish`, `/dashboard/apps` (×3) and `/u/[id]`; draft states → "Finish publishing" (draft banner links to checkout). Upload form says "Only you can see this until you publish. No charge until then." and the submit is "Continue". Landing "System Apps — Coming soon" fixed to live "Apps — Tools built by members. Browse, share, track."; Home/Ebooku/De-Course subtitles de-jargoned; Ebooku upload now leads with "you keep 90% of every sale"; duplicate De-Course footer line removed.
+
 ## Still TODO
 - Interest rename rollout DONE: prod columns renamed, slug backfill applied (1 profile + 1 group → business), `idx_groups_interest` created, PostgREST reloaded. Deployed 27c742a; prod smoke: `/findem` 200 with 12 interests, `/findem/business` 200 shows TaskNova, `/findem/tech` 200, `/findem/developers` 308 → `/findem/tech`, `/findem/founders` 308 → `/findem/business`, `/groups/tasknova` 200 shows Business & Startups, `/privacy` 200, `/onboarding` 307 to sign-in.
 - Add `ANALYTICS_SALT` (random 32+ chars, server-only) to Vercel env before deploying app analytics.
@@ -43,8 +53,7 @@ Slogan: Grow. Audience: aspirational builders, dreamers, goal-oriented community
 - Seller 90% payout ledger/UI (manual for now); Paystack subaccount/split wiring after USD activation.
 - Rotate Supabase secret key (sb_secret_… seen in chat/keys file) → update Vercel SUPABASE_SERVICE_ROLE_KEY + .env.local
 - Revoke setup tokens (C:\Users\Neville\.keys\system101-setup-tokens.txt) after setup
-- Custom SMTP for magic links (built-in ~2 emails/hr)
-- Notification center / in-app activity feed (not built)
+- Resend SMTP for magic links: set Supabase Auth SMTP (`smtp.resend.com:465`, user `resend`, API key, `noreply@system101.network`) + SPF/DKIM/DMARC; blocked on credentials/DNS. P5 notifications app layer is built but not deployed.
 - Hard 404 HTTP statuses for missing dynamic ids (PPR soft-404 caveat)
 - De-Course paid $5 upload (deferred until Paystack USD; no purchase model defined yet)
 - De-Course: lessons/multiple PDFs, reviews, search/filters, cover art (not built)

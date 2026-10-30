@@ -8,16 +8,16 @@ export const instant = false;
 
 const features = [
   { icon: Users, title: "Find'em", desc: "Groups by interest. Apply. Vote. Belong." },
-  { icon: BookOpen, title: "Ebooku", desc: "Upload books. Free or paid. Reviews." },
+  { icon: BookOpen, title: "Ebooku", desc: "Books from members. Free or paid." },
   { icon: Lightbulb, title: "Suggy", desc: "Group signals. Upvote. Ship." },
-  { icon: AppWindow, title: "System Apps", desc: "Windows + Mac. Coming soon." },
+  { icon: AppWindow, title: "Apps", desc: "Tools built by members. Browse, share, track." },
   { icon: GraduationCap, title: "De-Course", desc: "Free courses. Video + notes." },
 ];
 
 export default async function Landing() {
   const user = await getUser();
   return (
-    <div className="mx-auto max-w-6xl px-4">
+    <div className="mx-auto max-w-6xl px-4 pb-16">
       <section className="py-20 text-center">
         <Image src="/logo.png" alt={SITE.name} width={406} height={396} className="mx-auto h-16 w-auto" priority />
         <p className="mt-4 text-xs tracking-widest text-zinc-400">{SITE.name}</p>

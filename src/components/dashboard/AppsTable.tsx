@@ -108,7 +108,7 @@ export function AppsTable({
                       href={`/apps/publish/checkout/${app.id}`}
                       className="text-amber-300/80 hover:text-amber-200"
                     >
-                      Publish
+                      Finish publishing
                     </Link>
                   ) : (
                     <Link

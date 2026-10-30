@@ -42,17 +42,21 @@ export default async function CheckoutPage({
   if (app.status === "published") redirect(`/apps/${app.id}`);
   if (app.status === "removed") notFound();
 
+  const feeCents = Number(process.env.APP_LISTING_FEE_CENTS ?? 499);
+  const fee = `$${(feeCents / 100).toFixed(2)}`;
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Publish “{app.title}”</h1>
       <p className="mt-1 text-sm text-zinc-400">
-        Pay $4.99 to publish your app to the community. This is a one-time listing fee.
+        One-time listing fee. Your app goes live as soon as payment clears.
       </p>
       <div className="mt-6 card p-6">
         <p className="text-sm text-zinc-300">
           Your listing is currently a draft. Once payment succeeds, it will go live.
         </p>
-        <PublishPayButton appId={app.id} />
+        <p className="mt-3 text-sm text-zinc-400">Listing fee — {fee}</p>
+        <PublishPayButton appId={app.id} fee={fee} />
       </div>
     </div>
   );

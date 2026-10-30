@@ -36,9 +36,10 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     ],
   },
   {
-    heading: "Books, courses and payments",
+    heading: "Books, courses, apps and payments",
     body: [
       "Paid books are sold in US dollars through Paystack. The minimum price for a paid book is $2.99. Downloads are served through private signed links that work once per purchase and expire.",
+      "Publishing an app to the directory costs $4.99, charged once per listing through Paystack. The fee is not refunded once the listing is live.",
       "Author payouts run through Paystack subaccounts and splits, and the platform keeps a 10% share of each sale. Sellers are responsible for their own taxes and for refunds they approve.",
       "Refunds for digital purchases are handled case by case. Email us with your Paystack reference and we will sort it out. Where a file has already been downloaded, we may decline a refund.",
     ],

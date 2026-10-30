@@ -243,7 +243,7 @@ export function AppUploadForm() {
       </label>
 
       <div className="text-xs text-zinc-500">
-        Publishing to the community costs $4.99. You’ll pay after creating the draft listing.
+        Only you can see this until you publish. No charge until then.
       </div>
 
       {error && <p className="text-xs text-red-400">{error}</p>}
@@ -252,7 +252,7 @@ export function AppUploadForm() {
         disabled={busy}
         className="btn-pill bg-white px-6 py-2.5 text-sm font-medium text-black disabled:opacity-50"
       >
-        {busy ? "Creating…" : "Create draft listing"}
+        {busy ? "Creating…" : "Continue"}
       </button>
     </form>
   );

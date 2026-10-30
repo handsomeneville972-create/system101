@@ -159,7 +159,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
           <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
             {profile.apps.length === 0 && (
               <Link href="/apps/publish" className="text-zinc-400 hover:text-white">
-                Publish an app
+                Share your app
               </Link>
             )}
             <Link href="/dashboard/apps" className="text-zinc-400 hover:text-white">

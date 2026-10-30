@@ -24,7 +24,7 @@ export default async function Ebooku({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Ebooku</h1>
-          <p className="text-sm text-zinc-400">Free to share. Paid = 10% on sale. Reviews.</p>
+          <p className="text-sm text-zinc-400">Books from members. Free or paid. Read and review.</p>
         </div>
         <Link href="/ebooku/upload" className="btn-pill bg-white px-5 py-2.5 text-sm text-black">
           Upload

@@ -10,15 +10,15 @@ export default async function PublishPage() {
   if (!profile) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10">
-        <p className="text-sm text-zinc-400">Please <Link href="/auth/sign-in" className="underline">sign in</Link> to publish an app.</p>
+        <p className="text-sm text-zinc-400">Please <Link href="/auth/sign-in" className="underline">sign in</Link> to share your app.</p>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Publish an app</h1>
-      <p className="mt-1 text-sm text-zinc-400">Create a draft listing, then pay $4.99 to publish it to the community.</p>
+      <h1 className="text-2xl font-semibold">Share your app</h1>
+      <p className="mt-1 text-sm text-zinc-400">Tell the community what you built. It takes a few minutes.</p>
       <AppUploadForm />
     </div>
   );

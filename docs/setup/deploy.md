@@ -13,9 +13,9 @@ select table_name from information_schema.tables where table_schema = 'public' o
 select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' order by 1;
 ```
 
-Expect 17 tables and 18 functions.
+A fresh apply defines 18 tables and 30 functions. Existing projects may still show the retired `donations` table (19 total).
 
-## 2. Supabase — Authentication URLs
+## 2. Supabase — Authentication URLs & SMTP
 
 Dashboard → Authentication → URL Configuration:
 
@@ -29,7 +29,18 @@ Dashboard → Authentication → URL Configuration:
 
 Magic links redirect to `/auth/callback`; a `next` parameter is added only when a protected route sent the user to sign-in. The callback sends completed profiles to `/home` and new users to `/onboarding`. If the origin is not allowlisted, Supabase falls back to the Site URL and the user lands with no session.
 
-**Custom SMTP is required for real use** — the built-in sender is rate-limited to ~2 emails/hour. Set it under Authentication → Email → SMTP Settings.
+**Custom SMTP is required for real use** — the built-in sender is rate-limited to ~2 emails/hour. Resend is the chosen provider; configure Authentication → Email → SMTP Settings:
+
+| Field | Value |
+|---|---|
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | Resend API key |
+| Sender email | `noreply@system101.network` |
+| Sender name | ``De`System`` |
+
+Verify the domain in Resend and publish SPF, DKIM and DMARC DNS records before enabling. SMTP is used only for Supabase auth email; product notifications stay in-app. No app env var is required.
 
 ## 3. Vercel — environment variables
 
@@ -59,7 +70,16 @@ Rules:
 - Ebook checkout creates a pending `payments` row with a server-generated reference before Paystack init. `charge.success` trusts only that row/reference/amount/currency (not metadata ids); duplicates are idempotent, `charge.failed` marks failed, refund events mark `refunded`.
 - Paid ebook checkout needs `PAYSTACK_SECRET_KEY` + USD enabled; until then the Buy button returns a checkout error.
 
-## 5. Verification checklist
+## 5. Notifications
+
+`public.notifications` is the in-app inbox and activity feed. RLS is owner-only read/update; clients cannot insert or delete. Triggers create rows for join requests/outcomes, new members, signals opening/settling, leadership transfer, ebook purchases, reviews and app publishing. `push_notification` skips self-notifications and dedupes by `(recipient_id, dedupe_key)`.
+
+- Read rows are purged after 180 days by `purge_my_notifications()` on inbox load.
+- Timed-out join requests/signals settle lazily on Home/Inbox load; no cron.
+- Home “Needs you” counts pending join requests for led groups and unvoted signals in member groups.
+- Realtime, product email, push, digests and preferences are intentionally not enabled.
+
+## 6. Verification checklist
 
 1. `/auth/sign-up` → email arrives → link lands on `/auth/callback` → `/onboarding` → `/home` shows your name.
 2. Create a group at `/groups/new`; copy invite link; second account accepts it → group becomes `active`.
@@ -72,8 +92,9 @@ Rules:
 9. Trust flows: direct self-join is denied; join request appears only while pending and can be canceled; one vote of two stays pending; members can leave and the group shrinks; invites are single-use and the group activates only after 2 distinct members join; leader cannot consume an own invite; returning magic-link sign-in goes straight to `/home`; a paid buyer can still download a removed book.
 10. `/apps/publish` → icon + optional screenshots + optional developer bio → draft listing → `/apps/publish/checkout/<id>` → Paystack $4.99 → webhook flips the listing to `published` → appears on `/apps`; `/apps/<id>` shows bio, screenshots and external Visit link. Direct DB writes cannot publish a listing (trigger forces `draft`).
 11. App analytics: a published listing records a view on the detail page and a click through `/apps/<id>/click`; `/dashboard/apps` shows the owner views/clicks/CTR, breakdowns and CSV export. Duplicate events inside 5 minutes, owner clicks and bots are excluded; `/u/<id>` shows published apps plus an owner-only 30-day summary.
+12. Notifications: activity in a two-member group creates inbox rows for the other member; `/notifications` All/Unread filters, mark-all-read and row links work; home “Needs you” counts pending join requests and unvoted signals; the sidebar badge updates. Read rows older than 180 days are purged on inbox load.
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 - Login "does nothing" → redirect URL not in the allowlist (exact string, no trailing slash) or `www`/apex mismatch.
 - `Invalid API key` → `@supabase/ssr` older than `^0.7` predates publishable-key support; upgrade it and `@supabase/supabase-js`, then redeploy.

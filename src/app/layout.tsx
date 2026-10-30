@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
 import { AppContent } from "@/components/shell/AppContent";
+import { AppHeader } from "@/components/shell/AppHeader";
 import { AppSidebar } from "@/components/shell/AppSidebar";
 import { SidebarAccount } from "@/components/shell/SidebarAccount";
+import { SidebarCompany } from "@/components/shell/SidebarCompany";
+import { SidebarInbox } from "@/components/shell/SidebarInbox";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
 import { SITE } from "@/lib/nav";
 
@@ -45,12 +46,26 @@ function AccountFallback() {
   );
 }
 
+function InboxFallback() {
+  return <div className="h-9 rounded-lg bg-white/[0.04]" />;
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
       <body className="min-h-full bg-black text-zinc-50">
         <SidebarProvider>
           <AppSidebar
+            company={
+              <Suspense fallback={null}>
+                <SidebarCompany />
+              </Suspense>
+            }
+            inbox={
+              <Suspense fallback={<InboxFallback />}>
+                <SidebarInbox />
+              </Suspense>
+            }
             account={
               <Suspense fallback={<AccountFallback />}>
                 <SidebarAccount />
@@ -58,9 +73,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             }
           />
           <AppContent>
-            <Navbar />
+            <AppHeader />
             <main className="flex-1">{children}</main>
-            <Footer />
           </AppContent>
         </SidebarProvider>
       </body>

@@ -5,13 +5,10 @@ import {
   FileUp,
   GraduationCap,
   House,
-  Info,
   LayoutGrid,
   Lightbulb,
-  Mail,
   Plus,
   UsersRound,
-  Youtube,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +17,11 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   external?: boolean;
+};
+
+export type TextLink = {
+  href: string;
+  label: string;
 };
 
 export const NAV_LINKS: NavItem[] = [
@@ -45,17 +47,12 @@ export const SITE = {
   name: "De`System",
   tagline: "For those who aspire. Build something great. Find your people.",
   email: "support@001system.dev",
-  youtube: "https://www.youtube.com/@PERSPECTIVExGROWTH",
   company: "C. Levi Company",
 } as const;
 
-export const COMPANY_NAV: NavItem[] = [
-  { href: "/#about", label: "About us", icon: Info },
-  { href: `mailto:${SITE.email}`, label: "Contact", icon: Mail },
-  { href: SITE.youtube, label: "YouTube", icon: Youtube, external: true },
-];
-
-export const LEGAL_LINKS = [
+export const COMPANY_LINKS: TextLink[] = [
+  { href: "/#about", label: "About us" },
+  { href: `mailto:${SITE.email}`, label: "Contact" },
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },
-] as const;
+];

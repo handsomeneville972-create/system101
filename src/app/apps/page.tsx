@@ -12,19 +12,19 @@ export default async function Apps() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Community Apps</h1>
-          <p className="text-sm text-zinc-400">Apps built by members. $4.99 to publish to the community.</p>
+          <p className="text-sm text-zinc-400">Apps built by members. Yours could be next.</p>
         </div>
         <Link
           href="/apps/publish"
           className="btn-pill bg-white px-6 py-2.5 text-sm font-medium text-black"
         >
-          Publish an app
+          Share your app
         </Link>
       </div>
 
       {apps.length === 0 ? (
         <div className="card p-12 text-center">
-          <p className="text-sm text-zinc-500">No apps yet. Be the first to publish.</p>
+          <p className="text-sm text-zinc-500">No apps yet. Yours could be the first.</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

@@ -1642,3 +1642,382 @@ begin
   return v_result;
 end;
 $$;
+
+-- =========================================================
+-- 13) Notifications — in-app activity inbox
+-- =========================================================
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid not null references public.profiles(id) on delete cascade,
+  actor_id uuid references public.profiles(id) on delete set null,
+  kind text not null,
+  group_id uuid references public.groups(id) on delete cascade,
+  entity_type text,
+  entity_id uuid,
+  href text not null,
+  title text not null,
+  body text,
+  read_at timestamptz,
+  created_at timestamptz not null default now(),
+  dedupe_key text,
+  unique (recipient_id, dedupe_key)
+);
+
+create index if not exists idx_notifications_recipient_created
+  on public.notifications(recipient_id, created_at desc);
+create index if not exists idx_notifications_unread
+  on public.notifications(recipient_id) where read_at is null;
+
+alter table public.notifications enable row level security;
+
+drop policy if exists "notifications read own" on public.notifications;
+create policy "notifications read own" on public.notifications for select to authenticated
+  using ((select auth.uid()) = recipient_id);
+
+drop policy if exists "notifications update own" on public.notifications;
+create policy "notifications update own" on public.notifications for update to authenticated
+  using ((select auth.uid()) = recipient_id)
+  with check ((select auth.uid()) = recipient_id);
+
+revoke all on public.notifications from anon;
+revoke insert, delete, update on public.notifications from authenticated;
+grant select on public.notifications to authenticated;
+grant update (read_at) on public.notifications to authenticated;
+
+-- best-effort insert: a notification must never block the action that caused it
+create or replace function public.push_notification(
+  p_recipient uuid,
+  p_actor uuid,
+  p_kind text,
+  p_group uuid,
+  p_entity_type text,
+  p_entity_id uuid,
+  p_href text,
+  p_title text,
+  p_body text,
+  p_dedupe text
+)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_recipient is null or p_recipient = p_actor then return; end if;
+  if p_href is null or p_href not like '/%' then return; end if;
+
+  insert into public.notifications (
+    recipient_id, actor_id, kind, group_id, entity_type, entity_id,
+    href, title, body, dedupe_key
+  ) values (
+    p_recipient, p_actor, p_kind, p_group, p_entity_type, p_entity_id,
+    p_href, left(coalesce(p_title, 'Update'), 160), left(nullif(p_body, ''), 500), p_dedupe
+  )
+  on conflict (recipient_id, dedupe_key) do nothing;
+exception when others then
+  raise warning 'push_notification failed: %', sqlerrm;
+end;
+$$;
+
+revoke all on function public.push_notification(uuid, uuid, text, uuid, text, uuid, text, text, text, text)
+  from public, anon, authenticated;
+
+create or replace function public.purge_my_notifications()
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  v_count int;
+begin
+  if auth.uid() is null then return 0; end if;
+  delete from public.notifications
+    where recipient_id = auth.uid()
+      and read_at is not null
+      and created_at < now() - interval '180 days';
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.purge_my_notifications() from public, anon;
+grant execute on function public.purge_my_notifications() to authenticated;
+
+create or replace function public.notify_join_request_created()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+  v_name text;
+  r record;
+begin
+  select * into g from public.groups where id = new.group_id;
+  if not found then return new; end if;
+
+  select coalesce(nullif(display_name, ''), 'Someone') into v_name
+    from public.profiles where id = new.user_id;
+
+  for r in select user_id from public.group_members where group_id = new.group_id loop
+    perform public.push_notification(
+      r.user_id, new.user_id, 'join_request', new.group_id, 'join_request', new.id,
+      '/groups/' || g.slug, 'New join request',
+      v_name || ' wants to join ' || g.name || '.',
+      'join_request:' || new.id || ':created'
+    );
+  end loop;
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_join_request_created on public.join_requests;
+create trigger notify_join_request_created after insert on public.join_requests
+  for each row execute function public.notify_join_request_created();
+
+revoke all on function public.notify_join_request_created() from public, anon, authenticated;
+
+create or replace function public.notify_join_request_settled()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+begin
+  if new.status not in ('approved', 'denied') or old.status = new.status then
+    return new;
+  end if;
+
+  select * into g from public.groups where id = new.group_id;
+  if not found then return new; end if;
+
+  perform public.push_notification(
+    new.user_id, null,
+    case when new.status = 'approved' then 'join_approved' else 'join_denied' end,
+    new.group_id, 'join_request', new.id, '/groups/' || g.slug,
+    case when new.status = 'approved' then 'You are in' else 'Request not approved' end,
+    case when new.status = 'approved'
+      then g.name || ' approved your request.'
+      else g.name || ': ' || coalesce(new.outcome_reason, 'Not enough yes votes.')
+    end,
+    'join_request:' || new.id || ':' || new.status
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_join_request_settled on public.join_requests;
+create trigger notify_join_request_settled after update of status on public.join_requests
+  for each row execute function public.notify_join_request_settled();
+
+revoke all on function public.notify_join_request_settled() from public, anon, authenticated;
+
+create or replace function public.notify_suggy_open()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+  r record;
+begin
+  if new.status <> 'voting' then return new; end if;
+
+  select * into g from public.groups where id = new.group_id;
+  if not found then return new; end if;
+
+  for r in
+    select user_id from public.group_members
+    where group_id = new.group_id and user_id <> g.leader_id
+  loop
+    perform public.push_notification(
+      r.user_id, g.leader_id, 'suggy_open', new.group_id, 'suggy', new.id,
+      '/groups/' || g.slug, 'New signal to vote',
+      new.title || ' is open for a vote.',
+      'suggy:' || new.id || ':open'
+    );
+  end loop;
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_suggy_open on public.suggies;
+create trigger notify_suggy_open after insert on public.suggies
+  for each row execute function public.notify_suggy_open();
+
+revoke all on function public.notify_suggy_open() from public, anon, authenticated;
+
+create or replace function public.notify_suggy_settled()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+  v_href text;
+  r record;
+begin
+  if new.status not in ('published', 'rejected') or old.status = new.status then
+    return new;
+  end if;
+
+  select * into g from public.groups where id = new.group_id;
+  if not found then return new; end if;
+
+  v_href := case when new.status = 'published' then '/suggy' else '/groups/' || g.slug end;
+
+  for r in
+    select distinct u.user_id
+    from (
+      select g.leader_id as user_id
+      union
+      select voter_id as user_id from public.suggy_votes where suggy_id = new.id
+    ) u
+    where u.user_id is not null
+  loop
+    perform public.push_notification(
+      r.user_id, null,
+      case when new.status = 'published' then 'suggy_published' else 'suggy_rejected' end,
+      new.group_id, 'suggy', new.id, v_href,
+      case when new.status = 'published' then 'Signal passed' else 'Signal rejected' end,
+      case when new.status = 'published'
+        then new.title || ' is now on Suggy.'
+        else new.title || ' did not reach 80%.'
+      end,
+      'suggy:' || new.id || ':' || new.status
+    );
+  end loop;
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_suggy_settled on public.suggies;
+create trigger notify_suggy_settled after update of status on public.suggies
+  for each row execute function public.notify_suggy_settled();
+
+revoke all on function public.notify_suggy_settled() from public, anon, authenticated;
+
+create or replace function public.notify_member_joined()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+  v_name text;
+begin
+  select * into g from public.groups where id = new.group_id;
+  if not found then return new; end if;
+  if g.leader_id is null or g.leader_id = new.user_id then return new; end if;
+
+  select coalesce(nullif(display_name, ''), 'Someone') into v_name
+    from public.profiles where id = new.user_id;
+
+  perform public.push_notification(
+    g.leader_id, auth.uid(), 'member_joined', new.group_id, 'group_member', new.user_id,
+    '/groups/' || g.slug, 'New member',
+    v_name || ' joined ' || g.name || '.',
+    'group:' || new.group_id || ':member:' || new.user_id || ':joined:' || to_char(new.joined_at, 'YYYYMMDDHH24MISS')
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_member_joined on public.group_members;
+create trigger notify_member_joined after insert on public.group_members
+  for each row execute function public.notify_member_joined();
+
+revoke all on function public.notify_member_joined() from public, anon, authenticated;
+
+create or replace function public.notify_leader_transferred()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.leader_id is null or new.leader_id = old.leader_id then return new; end if;
+
+  perform public.push_notification(
+    new.leader_id, old.leader_id, 'leadership_transferred', new.id, 'group', new.id,
+    '/groups/' || new.slug, 'You are now leader',
+    'You now lead ' || new.name || '.',
+    'group:' || new.id || ':leader:' || new.leader_id
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_leader_transferred on public.groups;
+create trigger notify_leader_transferred after update of leader_id on public.groups
+  for each row execute function public.notify_leader_transferred();
+
+revoke all on function public.notify_leader_transferred() from public, anon, authenticated;
+
+create or replace function public.notify_payment_success()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_seller uuid;
+  v_title text;
+begin
+  if new.status <> 'success' or old.status = 'success' then return new; end if;
+
+  -- App listing payments are covered by notify_app_published.
+  if new.app_id is not null or new.ebook_id is null then return new; end if;
+
+  select uploader_id, title into v_seller, v_title
+    from public.ebooks where id = new.ebook_id;
+
+  if new.buyer_id is not null and new.buyer_id is distinct from v_seller then
+    perform public.push_notification(
+      new.buyer_id, v_seller, 'purchase', null, 'ebook', new.ebook_id,
+      '/ebooku/' || new.ebook_id, 'Purchase confirmed',
+      'You bought ' || coalesce(v_title, 'your book') || '.',
+      'payment:' || new.id || ':buyer'
+    );
+  end if;
+
+  if v_seller is not null and v_seller is distinct from new.buyer_id then
+    perform public.push_notification(
+      v_seller, new.buyer_id, 'sale', null, 'ebook', new.ebook_id,
+      '/ebooku/' || new.ebook_id, 'You made a sale',
+      coalesce(v_title, 'Your book') || ' sold.',
+      'payment:' || new.id || ':seller'
+    );
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_payment_success on public.payments;
+create trigger notify_payment_success after update of status on public.payments
+  for each row execute function public.notify_payment_success();
+
+revoke all on function public.notify_payment_success() from public, anon, authenticated;
+
+create or replace function public.notify_review_created()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_seller uuid;
+  v_title text;
+  v_name text;
+begin
+  select uploader_id, title into v_seller, v_title
+    from public.ebooks where id = new.ebook_id;
+  if v_seller is null or v_seller = new.user_id then return new; end if;
+
+  select coalesce(nullif(display_name, ''), 'Someone') into v_name
+    from public.profiles where id = new.user_id;
+
+  perform public.push_notification(
+    v_seller, new.user_id, 'review', null, 'ebook', new.ebook_id,
+    '/ebooku/' || new.ebook_id, 'New review',
+    v_name || ' rated ' || coalesce(v_title, 'your book') || ' ' || new.rating || '/5.',
+    'review:' || new.id
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_review_created on public.reviews;
+create trigger notify_review_created after insert on public.reviews
+  for each row execute function public.notify_review_created();
+
+revoke all on function public.notify_review_created() from public, anon, authenticated;
+
+create or replace function public.notify_app_published()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.status <> 'published' or old.status = 'published' then return new; end if;
+
+  perform public.push_notification(
+    new.uploader_id, null, 'app_published', null, 'app', new.id,
+    '/apps/' || new.id, 'Listing live',
+    new.title || ' is now published.',
+    'app:' || new.id || ':published'
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists notify_app_published on public.apps;
+create trigger notify_app_published after update of status on public.apps
+  for each row execute function public.notify_app_published();
+
+revoke all on function public.notify_app_published() from public, anon, authenticated;

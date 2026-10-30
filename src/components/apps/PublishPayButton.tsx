@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function PublishPayButton({ appId }: { appId: string }) {
+export function PublishPayButton({ appId, fee }: { appId: string; fee: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -41,7 +41,7 @@ export function PublishPayButton({ appId }: { appId: string }) {
         disabled={busy}
         className="mt-4 btn-pill bg-white px-6 py-2.5 text-sm font-medium text-black disabled:opacity-50"
       >
-        {busy ? "Starting…" : "Pay $4.99 — Publish now"}
+        {busy ? "Starting…" : `Pay ${fee} — Publish now`}
       </button>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
     </div>

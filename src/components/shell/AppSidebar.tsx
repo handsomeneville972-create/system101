@@ -11,7 +11,6 @@ import {
 } from "react";
 import { ArrowUpRight, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import {
-  COMPANY_NAV,
   CONTRIBUTE_NAV,
   NAV_LINKS,
   SITE,
@@ -109,12 +108,14 @@ function SidebarSection({
   pathname,
   collapsed,
   divider,
+  inbox,
 }: {
   title: string;
   links: NavItem[];
   pathname: string;
   collapsed: boolean;
   divider?: boolean;
+  inbox?: ReactNode;
 }) {
   return (
     <section className={cn(divider && "mt-2 border-t border-white/[0.06] pt-2")}>
@@ -142,12 +143,21 @@ function SidebarSection({
             </li>
           );
         })}
+        {inbox ? <li>{inbox}</li> : null}
       </ul>
     </section>
   );
 }
 
-export function AppSidebar({ account }: { account: ReactNode }) {
+export function AppSidebar({
+  account,
+  company,
+  inbox,
+}: {
+  account: ReactNode;
+  company: ReactNode;
+  inbox?: ReactNode;
+}) {
   const {
     collapsed,
     mounted,
@@ -269,38 +279,35 @@ export function AppSidebar({ account }: { account: ReactNode }) {
           </button>
         </div>
 
-        <nav
-          aria-label="Primary"
-          className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden px-1.5 py-2"
-        >
-          <SidebarSection
-            title="Explore"
-            links={NAV_LINKS}
-            pathname={pathname}
-            collapsed={collapsed}
-          />
-          <SidebarSection
-            title="Your work"
-            links={WORK_NAV}
-            pathname={pathname}
-            collapsed={collapsed}
-            divider
-          />
-          <SidebarSection
-            title="Contribute"
-            links={CONTRIBUTE_NAV}
-            pathname={pathname}
-            collapsed={collapsed}
-            divider
-          />
-          <SidebarSection
-            title="Company"
-            links={COMPANY_NAV}
-            pathname={pathname}
-            collapsed={collapsed}
-            divider
-          />
-        </nav>
+        <div className="sidebar-scroll flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-1.5 py-2">
+          <nav aria-label="Primary" className="shrink-0">
+            <SidebarSection
+              title="Explore"
+              links={NAV_LINKS}
+              pathname={pathname}
+              collapsed={collapsed}
+            />
+            <SidebarSection
+              title="Your work"
+              links={WORK_NAV}
+              pathname={pathname}
+              collapsed={collapsed}
+              divider
+              inbox={inbox}
+            />
+            <SidebarSection
+              title="Contribute"
+              links={CONTRIBUTE_NAV}
+              pathname={pathname}
+              collapsed={collapsed}
+              divider
+            />
+          </nav>
+
+          <div className={cn("mt-auto shrink-0", collapsed && "md:hidden")}>
+            {company}
+          </div>
+        </div>
 
         <div className="shrink-0 border-t hairline p-1.5">{account}</div>
       </aside>

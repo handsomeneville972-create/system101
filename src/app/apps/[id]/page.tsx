@@ -101,7 +101,13 @@ export default async function AppPage({
 
           {app.is_uploader && app.status === "draft" && (
             <div className="mt-3 p-3 rounded-md border hairline bg-white/[0.02] text-xs text-zinc-400">
-              Listing is a draft — pay $4.99 to publish it to the community.
+              Draft — only you can see this.{" "}
+              <Link
+                href={`/apps/publish/checkout/${app.id}`}
+                className="text-zinc-200 underline"
+              >
+                Finish publishing
+              </Link>
             </div>
           )}
         </div>
