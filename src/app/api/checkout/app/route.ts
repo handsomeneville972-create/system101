@@ -74,6 +74,7 @@ export async function POST(req: Request) {
     amount_cents: APP_LISTING_FEE_CENTS,
     currency: "USD",
     status: "pending",
+    platform_fee_cents: APP_LISTING_FEE_CENTS,
   });
   if (pendingError) {
     return NextResponse.json({ error: "Could not start checkout" }, { status: 500 });

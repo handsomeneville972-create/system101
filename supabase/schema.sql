@@ -2021,3 +2021,143 @@ create trigger notify_app_published after update of status on public.apps
   for each row execute function public.notify_app_published();
 
 revoke all on function public.notify_app_published() from public, anon, authenticated;
+
+-- =========================================================
+-- 14) Seller earnings & manual payouts
+-- =========================================================
+
+-- Snapshot the platform fee per payment so historical earnings never move.
+alter table public.payments add column if not exists platform_fee_cents int;
+
+update public.payments
+set platform_fee_cents = round(amount_cents * 0.10)::int
+where platform_fee_cents is null and ebook_id is not null;
+
+alter table public.payout_accounts add column if not exists bank_name text;
+alter table public.payout_accounts add column if not exists country text;
+alter table public.payout_accounts add column if not exists currency text;
+alter table public.payout_accounts add column if not exists updated_at timestamptz default now();
+
+create table if not exists public.payout_requests (
+  id uuid primary key default gen_random_uuid(),
+  seller_id uuid not null references public.profiles(id) on delete cascade,
+  amount_cents int not null check (amount_cents > 0),
+  status text not null default 'requested' check (status in ('requested','paid','rejected')),
+  note text,
+  requested_at timestamptz not null default now(),
+  decided_at timestamptz
+);
+
+alter table public.payout_requests enable row level security;
+
+drop policy if exists "payout requests self read" on public.payout_requests;
+create policy "payout requests self read" on public.payout_requests
+  for select to authenticated using ((select auth.uid()) = seller_id);
+
+create unique index if not exists uniq_payout_request_open
+  on public.payout_requests (seller_id) where status = 'requested';
+create index if not exists idx_payout_requests_seller
+  on public.payout_requests (seller_id, requested_at desc);
+
+-- Requests are created only here, so the amount is computed from real sales.
+create or replace function public.request_payout(p_min_cents int default 1000)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_available bigint;
+  v_has_account boolean;
+  v_id uuid;
+  v_min int := greatest(coalesce(p_min_cents, 1000), 100);
+begin
+  if v_uid is null then
+    return jsonb_build_object('error', 'Sign in required.');
+  end if;
+
+  select exists(
+    select 1 from public.payout_accounts
+    where user_id = v_uid and account_number is not null
+  ) into v_has_account;
+  if not v_has_account then
+    return jsonb_build_object('error', 'Add your payout details first.');
+  end if;
+
+  select coalesce(sum(p.amount_cents - coalesce(p.platform_fee_cents, round(p.amount_cents * 0.10)::int)), 0)
+  into v_available
+  from public.payments p
+  join public.ebooks e on e.id = p.ebook_id
+  where p.status = 'success' and e.uploader_id = v_uid;
+
+  select v_available - coalesce(sum(amount_cents), 0)
+  into v_available
+  from public.payout_requests
+  where seller_id = v_uid and status in ('requested', 'paid');
+
+  if v_available < v_min then
+    return jsonb_build_object(
+      'error',
+      'The minimum payout is $' || to_char(v_min / 100.0, 'FM999990.00') || '.'
+    );
+  end if;
+
+  insert into public.payout_requests (seller_id, amount_cents)
+  values (v_uid, v_available)
+  returning id into v_id;
+
+  return jsonb_build_object('ok', true, 'id', v_id, 'amount_cents', v_available);
+exception when unique_violation then
+  return jsonb_build_object('error', 'You already have a payout in progress.');
+end;
+$$;
+
+revoke all on function public.request_payout(int) from public, anon;
+grant execute on function public.request_payout(int) to authenticated;
+
+-- One call returns everything the earnings page needs, under the caller's RLS.
+create or replace function public.seller_earnings()
+returns jsonb language sql stable security invoker set search_path = public as $$
+  with sales as (
+    select p.id, p.ebook_id, e.title as book_title, p.amount_cents,
+           coalesce(p.platform_fee_cents, round(p.amount_cents * 0.10)::int) as fee_cents,
+           p.created_at
+    from public.payments p
+    join public.ebooks e on e.id = p.ebook_id
+    where p.status = 'success' and e.uploader_id = (select auth.uid())
+  ),
+  totals as (
+    select coalesce(sum(amount_cents), 0)::bigint as gross,
+           coalesce(sum(fee_cents), 0)::bigint as fee,
+           coalesce(sum(amount_cents - fee_cents), 0)::bigint as net
+    from sales
+  ),
+  committed as (
+    select coalesce(sum(amount_cents), 0)::bigint as paid
+    from public.payout_requests
+    where seller_id = (select auth.uid()) and status in ('requested','paid')
+  )
+  select jsonb_build_object(
+    'gross_cents', (select gross from totals),
+    'fee_cents', (select fee from totals),
+    'net_cents', (select net from totals),
+    'paid_cents', (select paid from committed),
+    'available_cents', greatest((select net from totals) - (select paid from committed), 0),
+    'sales', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', s.id, 'ebook_id', s.ebook_id, 'book_title', s.book_title,
+        'amount_cents', s.amount_cents, 'fee_cents', s.fee_cents,
+        'net_cents', s.amount_cents - s.fee_cents, 'created_at', s.created_at
+      ) order by s.created_at desc)
+      from sales s
+    ), '[]'::jsonb),
+    'payouts', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', r.id, 'amount_cents', r.amount_cents, 'status', r.status,
+        'note', r.note, 'requested_at', r.requested_at, 'decided_at', r.decided_at
+      ) order by r.requested_at desc)
+      from public.payout_requests r
+      where r.seller_id = (select auth.uid())
+    ), '[]'::jsonb)
+  );
+$$;
+
+revoke all on function public.seller_earnings() from public, anon;
+grant execute on function public.seller_earnings() to authenticated;

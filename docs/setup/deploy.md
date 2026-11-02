@@ -56,6 +56,8 @@ Settings → Environment Variables, for **Production** and **Preview**:
 | `NEXT_PUBLIC_SITE_URL` | `https://system101.network` |
 | `PLATFORM_SPLIT_PERCENT` | `10` |
 | `APP_LISTING_FEE_CENTS` | `499` ($4.99 developer-paid app listing fee) |
+| `PAYOUT_MIN_CENTS` | `1000` ($10.00 minimum seller payout) |
+| `ADMIN_EMAILS` | comma-separated emails allowed to review payouts |
 | `ANALYTICS_SALT` | random 32+ char string — server only; salts anonymous app analytics hashes |
 Rules:
 - Never prefix `SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY` or `ANALYTICS_SALT` with `NEXT_PUBLIC_`.

@@ -29,6 +29,20 @@ export default async function Settings() {
           <AvatarUploader currentUrl={avatarUrl} />
         </div>
       </div>
+      <div className="card mt-4 flex items-center justify-between gap-3 p-6">
+        <div>
+          <h2 className="text-sm font-medium">Payouts</h2>
+          <p className="mt-1 text-xs text-zinc-400">
+            Where your book sales are paid out.
+          </p>
+        </div>
+        <Link
+          href="/settings/payouts"
+          className="text-xs text-zinc-400 underline hover:text-zinc-200"
+        >
+          Manage
+        </Link>
+      </div>
       <div className="mt-4">
         <SettingsForm profile={profile} />
       </div>

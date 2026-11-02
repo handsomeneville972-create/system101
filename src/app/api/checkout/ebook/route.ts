@@ -73,6 +73,7 @@ export async function POST(req: Request) {
     amount_cents: ebook.price_cents,
     currency: "USD",
     status: "pending",
+    platform_fee_cents: Math.round((ebook.price_cents * feePercent) / 100),
   });
   if (pendingError) {
     return NextResponse.json({ error: "Could not start checkout" }, { status: 500 });
