@@ -71,17 +71,20 @@ const SECTIONS: { heading: string; body: string[] }[] = [
 
 export default function Privacy() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Privacy</h1>
-      <p className="mt-2 text-sm text-zinc-400">Last updated: 23 October 2026</p>
+    <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-24">
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">Legal</p>
+      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Privacy</h1>
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+        Last updated: 23 October 2026
+      </p>
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-10 space-y-3">
         {SECTIONS.map((s) => (
-          <section key={s.heading} className="card p-6">
-            <h2 className="text-sm font-medium">{s.heading}</h2>
-            <div className="mt-3 space-y-2">
+          <section key={s.heading} className="rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-6 sm:p-7">
+            <h2 className="text-sm font-medium text-zinc-100">{s.heading}</h2>
+            <div className="mt-3 space-y-2.5">
               {s.body.map((p) => (
-                <p key={p} className="text-sm text-zinc-400">
+                <p key={p} className="text-sm leading-6 text-zinc-400">
                   {p}
                 </p>
               ))}
@@ -90,7 +93,7 @@ export default function Privacy() {
         ))}
       </div>
 
-      <p className="mt-6 text-xs text-zinc-400">
+      <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
         De`System · From C. Levi Company
       </p>
     </div>
