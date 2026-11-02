@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       amountUsd: APP_LISTING_FEE_CENTS / 100,
       amountCents: APP_LISTING_FEE_CENTS,
       reference,
-      callbackUrl: `${site}/apps/publish/success?app_id=${appId}`,
+      callbackUrl: `${site}/apps/publish/success`,
       metadata: {
         kind: "app_listing",
         app_id: appId,

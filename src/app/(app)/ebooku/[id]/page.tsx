@@ -15,10 +15,11 @@ export default async function EbookPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ bought?: string }>;
+  searchParams: Promise<{ bought?: string; reference?: string; trxref?: string }>;
 }) {
   const { id } = await params;
-  const { bought } = await searchParams;
+  const { bought, reference, trxref } = await searchParams;
+  const returned = bought === "1" || Boolean(reference || trxref);
   const ebook = await ebookDetail(id);
   if (!ebook) notFound();
   const profile = await getProfile();
@@ -33,7 +34,7 @@ export default async function EbookPage({
         ← Ebooku
       </Link>
 
-      {bought === "1" && !ebook.owned && (
+      {returned && !ebook.owned && (
         <div className="card mt-4 p-4 text-sm text-zinc-300">
           Payment received. If the book is not unlocked yet, refresh in a few seconds.
         </div>

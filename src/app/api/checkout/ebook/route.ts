@@ -84,7 +84,7 @@ export async function POST(req: Request) {
       amountUsd: ebook.price_cents / 100,
       amountCents: ebook.price_cents,
       reference,
-      callbackUrl: `${site}/ebooku/${ebook.id}?bought=1`,
+      callbackUrl: `${site}/ebooku/${ebook.id}`,
       subaccount: ebook.subaccount_code ?? undefined,
       metadata: {
         kind: "ebook",
