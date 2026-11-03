@@ -2161,3 +2161,5 @@ $$;
 
 revoke all on function public.seller_earnings() from public, anon;
 grant execute on function public.seller_earnings() to authenticated;
+
+notify pgrst, 'reload schema';
