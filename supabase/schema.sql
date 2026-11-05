@@ -2081,6 +2081,13 @@ begin
     return jsonb_build_object('error', 'Add your payout details first.');
   end if;
 
+  if exists (
+    select 1 from public.payout_requests
+    where seller_id = v_uid and status = 'requested'
+  ) then
+    return jsonb_build_object('error', 'You already have a payout in progress.');
+  end if;
+
   select coalesce(sum(p.amount_cents - coalesce(p.platform_fee_cents, round(p.amount_cents * 0.10)::int)), 0)
   into v_available
   from public.payments p
