@@ -7,6 +7,7 @@ const PROTECTED = [
   "/groups/new",
   "/onboarding",
   "/settings",
+  "/admin",
   "/ebooku/upload",
   "/decourse/upload",
   "/dashboard",
