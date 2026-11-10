@@ -15,7 +15,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "What we collect",
     body: [
-      "Account and sign-in: your email address. We send a magic sign-in link instead of storing a password.",
+      "Account and sign-in: your email address and, if you set one, a password stored in hashed form by our auth provider. You can also request a one-time email link instead of a password.",
       "Profile: the display name, interest, bio and goals you enter, plus an avatar image if you upload one.",
       "Community activity: the groups you join, join requests you send or receive, votes you cast (including any reason you leave for a no vote), signal up and down votes, and the invite links created inside your groups.",
       "Content: books you upload or buy, the descriptions and prices you set, reviews and ratings you write, and courses you upload or watch.",
@@ -30,7 +30,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     heading: "How we use it",
     body: [
       "To run the service: accounts, groups, votes, uploads, downloads and payments.",
-      "To send you the messages the service owes you: sign-in links and, if you asked for them, launch notifications. We do not send marketing email.",
+      "To send you the messages the service owes you: sign-in links, password resets and, if you asked for them, launch notifications. We do not send marketing email.",
       "To keep the community safe: investigating reports, fraud and abuse.",
       "To show developers aggregate traffic on their own app listings. These analytics are first-party, cookie-free and never used for advertising.",
       "To understand what works, in aggregate only.",
@@ -74,7 +74,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-24">
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">Legal</p>
       <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Privacy</h1>
-      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-400">
         Last updated: 23 October 2026
       </p>
 
@@ -93,7 +93,7 @@ export default function Privacy() {
         ))}
       </div>
 
-      <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+      <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-400">
         De`System · From C. Levi Company
       </p>
     </div>

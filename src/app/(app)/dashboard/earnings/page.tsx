@@ -27,7 +27,7 @@ const TD = "px-3 py-2.5 text-sm text-zinc-300";
 
 export default async function EarningsPage() {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in?next=/dashboard/earnings");
+  if (!user) redirect("/?mode=signin&next=/dashboard/earnings");
 
   const [earnings, account] = await Promise.all([sellerEarnings(), payoutAccount()]);
 

@@ -1,9 +1,53 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { INTERESTS } from "@/lib/domain";
-import { groupsByInterest } from "@/lib/data/groups";
+import { groupsByInterest, type GroupRow } from "@/lib/data/groups";
+import { LoadingRegion } from "@/components/ui/skeleton";
+import { GroupCardSkeleton } from "@/components/ui/skeletons";
 
 export const instant = false;
+
+async function GroupGrid({ groups }: { groups: Promise<GroupRow[]> }) {
+  const list = await groups;
+
+  return (
+    <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {list.length === 0 && (
+        <div className="card p-6 text-sm text-zinc-400">
+          No groups yet. Be first. Invite 2 to activate. Join requests need 80% yes in 48h.
+        </div>
+      )}
+      {list.map((g) => (
+        <Link key={g.id} href={`/groups/${g.slug}`} className="card p-6 hover:bg-white/[0.02]">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium">{g.name}</h2>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs ${
+                g.active ? "bg-white/10 text-zinc-200" : "border hairline text-zinc-400"
+              }`}
+            >
+              {g.active ? "active" : "forming"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            {g.member_count} {g.member_count === 1 ? "member" : "members"}
+          </p>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function GroupGridSkeleton() {
+  return (
+    <LoadingRegion label="Loading groups…" className="mt-6 grid gap-4 md:grid-cols-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <GroupCardSkeleton key={index} />
+      ))}
+    </LoadingRegion>
+  );
+}
 
 export default async function InterestPage({
   params,
@@ -13,7 +57,7 @@ export default async function InterestPage({
   const { interest } = await params;
   const meta = INTERESTS.find((p) => p.slug === interest);
   if (!meta) notFound();
-  const groups = await groupsByInterest(interest);
+  const groups = groupsByInterest(interest);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -33,30 +77,9 @@ export default async function InterestPage({
         </Link>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {groups.length === 0 && (
-          <div className="card p-6 text-sm text-zinc-400">
-            No groups yet. Be first. Invite 2 to activate. Join requests need 80% yes in 48h.
-          </div>
-        )}
-        {groups.map((g) => (
-          <Link key={g.id} href={`/groups/${g.slug}`} className="card p-6 hover:bg-white/[0.02]">
-            <div className="flex items-center justify-between">
-              <h2 className="font-medium">{g.name}</h2>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs ${
-                  g.active ? "bg-white/10 text-zinc-200" : "border hairline text-zinc-400"
-                }`}
-              >
-                {g.active ? "active" : "forming"}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-zinc-500">
-              {g.member_count} {g.member_count === 1 ? "member" : "members"}
-            </p>
-          </Link>
-        ))}
-      </div>
+      <Suspense fallback={<GroupGridSkeleton />}>
+        <GroupGrid groups={groups} />
+      </Suspense>
     </div>
   );
 }

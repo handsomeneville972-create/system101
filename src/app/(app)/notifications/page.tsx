@@ -24,7 +24,7 @@ export default async function NotificationsPage({
   searchParams: Promise<{ filter?: string }>;
 }) {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in?next=/notifications");
+  if (!user) redirect("/?mode=signin&next=/notifications");
 
   const params = await searchParams;
   const filter = params.filter === "unread" ? "unread" : "all";

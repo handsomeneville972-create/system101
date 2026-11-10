@@ -1,11 +1,13 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
+import { TAGS } from "@/lib/cache";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -48,6 +50,11 @@ export async function prepareUpload(input: {
 }): Promise<{ error: string } | { icon: UploadTarget; screenshots: UploadTarget[] }> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("apps.upload.prepare", user.id, {
+    limit: 30,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const iconExt = input.iconExt.toLowerCase().replace(/^\./, "");
   if (!ICON_EXT[iconExt]) return { error: "Icon must be JPG, PNG or WebP." };
@@ -85,6 +92,11 @@ export async function prepareUpload(input: {
 export async function createApp(formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("apps.create", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const title = String(formData.get("title") ?? "").trim();
   const tagline = String(formData.get("tagline") ?? "").trim();
@@ -173,13 +185,14 @@ export async function createApp(formData: FormData): Promise<FormState> {
 
 export async function removeApp(formData: FormData) {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in");
+  if (!user) redirect("/?mode=signin");
   const id = String(formData.get("app_id") ?? "");
   if (!id) return;
 
   const sb = await supabaseServer();
   await sb.from("apps").update({ status: "removed" }).eq("id", id).eq("uploader_id", user.id);
 
+  updateTag(TAGS.apps);
   revalidatePath("/apps");
   redirect("/apps");
 }

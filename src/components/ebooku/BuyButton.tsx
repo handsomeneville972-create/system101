@@ -18,7 +18,7 @@ export function BuyButton({ ebookId, label }: { ebookId: string; label: string }
         body: JSON.stringify({ ebook_id: ebookId }),
       });
       if (res.status === 401) {
-        router.push(`/auth/sign-in?next=${encodeURIComponent(`/ebooku/${ebookId}`)}`);
+        router.push(`/?mode=signin&next=${encodeURIComponent(`/ebooku/${ebookId}`)}`);
         return;
       }
       const data = await res.json();

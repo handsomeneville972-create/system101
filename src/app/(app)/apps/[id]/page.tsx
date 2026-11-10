@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ViewBeacon } from "@/components/apps/ViewBeacon";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { getUser } from "@/lib/auth";
 import { appDetail } from "@/lib/data/apps";
 import { removeApp } from "@/lib/actions/apps";
@@ -91,9 +92,12 @@ export default async function AppPage({
                 </Link>
                 <form action={removeApp}>
                   <input type="hidden" name="app_id" value={app.id} />
-                  <button className="text-xs text-zinc-500 hover:text-red-400">
+                  <SubmitButton
+                    pendingText="Removing…"
+                    className="text-xs text-zinc-500 hover:text-red-400"
+                  >
                     Remove listing
-                  </button>
+                  </SubmitButton>
                 </form>
               </div>
             )}

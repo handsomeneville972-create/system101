@@ -2,11 +2,34 @@ import { after, NextResponse } from "next/server";
 import { clientIp, countryCode, recordAppEvent, trackedDestination, utmFrom } from "@/lib/analytics";
 import { getUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { RATE_LIMITS, rateLimit, requestIp } from "@/lib/rate-limit";
+
+export const maxDuration = 15;
+
+const NO_STORE = { "Cache-Control": "no-store" };
+
+function redirect(url: URL) {
+  return NextResponse.redirect(url, { status: 302, headers: NO_STORE });
+}
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const limited = rateLimit(`click:${requestIp(req.headers)}`, RATE_LIMITS.click);
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(limited.retryAfterSec),
+          ...NO_STORE,
+        },
+      }
+    );
+  }
+
   const { id } = await params;
   const url = new URL(req.url);
   const admin = supabaseAdmin();
@@ -18,7 +41,7 @@ export async function GET(
     .maybeSingle();
 
   if (!app || app.status !== "published") {
-    return NextResponse.redirect(new URL("/apps", url), 302);
+    return redirect(new URL("/apps", url));
   }
 
   const wantRepo = url.searchParams.get("target") === "repo";
@@ -36,7 +59,7 @@ export async function GET(
   const utm = utmFrom(url.search);
   const destination = trackedDestination(raw, utm.utm_campaign);
   if (!destination) {
-    return NextResponse.redirect(new URL(`/apps/${id}`, url), 302);
+    return redirect(new URL(`/apps/${id}`, url));
   }
 
   const user = await getUser();
@@ -59,5 +82,5 @@ export async function GET(
     );
   }
 
-  return NextResponse.redirect(destination, 302);
+  return redirect(new URL(destination));
 }

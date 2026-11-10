@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -27,6 +28,11 @@ export async function prepareAvatarUpload(input: {
 }): Promise<{ error: string } | AvatarTarget> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("profile.avatar.prepare", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const ext = input.ext.toLowerCase().replace(/^\./, "");
   if (!EXT_MIME[ext]) return { error: "Use JPG, PNG or WebP." };
@@ -42,6 +48,11 @@ export async function prepareAvatarUpload(input: {
 export async function setAvatar(formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("profile.avatar.set", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const path = String(formData.get("avatar_path") ?? "");
   if (!path.startsWith(`${user.id}/`)) return { error: "Invalid upload path." };

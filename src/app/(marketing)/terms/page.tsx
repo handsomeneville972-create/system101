@@ -15,7 +15,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "Accounts",
     body: [
-      "You need an account to post, vote, upload or buy. We use magic sign-in links, so you never set a password. Keep your email secure: anyone with your email can sign in to your account.",
+      "You need an account to post, vote, upload or buy. You can sign in with your email and password, or with a one-time email link. Keep your password and email secure: you are responsible for activity on your account.",
       "You must be old enough to form a binding contract where you live, and at least 13 years old. One person, one account.",
     ],
   },
@@ -84,7 +84,7 @@ export default function Terms() {
     <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-24">
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">Legal</p>
       <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Terms</h1>
-      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-400">
         Last updated: 22 October 2026
       </p>
 
@@ -103,7 +103,7 @@ export default function Terms() {
         ))}
       </div>
 
-      <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+      <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-400">
         De`System · From C. Levi Company
       </p>
     </div>

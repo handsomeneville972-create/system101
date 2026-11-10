@@ -1,12 +1,14 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
 import { parseVideoUrl } from "@/lib/video";
+import { TAGS } from "@/lib/cache";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type FormState = { error?: string; ok?: boolean };
 export type UploadTarget = { path: string; token: string };
@@ -19,6 +21,11 @@ export async function prepareCourseUpload(input: {
 }): Promise<{ error: string } | UploadTarget> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("courses.upload.prepare", user.id, {
+    limit: 30,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const ext = input.ext.toLowerCase().replace(/^\./, "");
   if (ext !== "pdf") return { error: "Resource must be a PDF." };
@@ -34,6 +41,11 @@ export async function prepareCourseUpload(input: {
 export async function createCourse(formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("courses.create", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -100,19 +112,21 @@ export async function createCourse(formData: FormData): Promise<FormState> {
 
   if (error || !data) return { error: error?.message ?? "Could not publish." };
 
+  updateTag(TAGS.courses);
   revalidatePath("/decourse");
   redirect(`/decourse/${data.id}`);
 }
 
 export async function removeCourse(formData: FormData) {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in");
+  if (!user) redirect("/?mode=signin");
   const id = String(formData.get("course_id") ?? "");
   if (!id) return;
 
   const sb = await supabaseServer();
   await sb.from("courses").update({ status: "removed" }).eq("id", id).eq("creator_id", user.id);
 
+  updateTag(TAGS.courses);
   revalidatePath("/decourse");
   redirect("/decourse");
 }

@@ -1,6 +1,9 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { EbookCard } from "@/components/ebooku/EbookCard";
-import { listEbooks, type PriceFilter } from "@/lib/data/ebooks";
+import { LoadingRegion } from "@/components/ui/skeleton";
+import { EbookCardSkeleton } from "@/components/ui/skeletons";
+import { listEbooks, type EbookListItem, type PriceFilter } from "@/lib/data/ebooks";
 
 export const instant = false;
 
@@ -10,6 +13,33 @@ const TABS: { key: PriceFilter; label: string; href: string }[] = [
   { key: "paid", label: "Paid", href: "/ebooku?price=paid" },
 ];
 
+async function EbookGrid({ books }: { books: Promise<EbookListItem[]> }) {
+  const list = await books;
+
+  return (
+    <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {list.length === 0 && (
+        <div className="card p-6 text-sm text-zinc-400">
+          No books yet. Upload the first.
+        </div>
+      )}
+      {list.map((b) => (
+        <EbookCard key={b.id} ebook={b} />
+      ))}
+    </div>
+  );
+}
+
+function EbookGridSkeleton() {
+  return (
+    <LoadingRegion label="Loading books…" className="mt-6 grid gap-4 md:grid-cols-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <EbookCardSkeleton key={index} />
+      ))}
+    </LoadingRegion>
+  );
+}
+
 export default async function Ebooku({
   searchParams,
 }: {
@@ -17,7 +47,7 @@ export default async function Ebooku({
 }) {
   const { price } = await searchParams;
   const filter: PriceFilter = price === "free" || price === "paid" ? price : "all";
-  const books = await listEbooks(filter);
+  const books = listEbooks(filter);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -45,17 +75,9 @@ export default async function Ebooku({
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {books.length === 0 && (
-          <div className="card p-6 text-sm text-zinc-400">
-            No books yet. Upload the first.
-          </div>
-        )}
-        {books.map((b) => (
-          <EbookCard key={b.id} ebook={b} />
-        ))}
-      </div>
-
+      <Suspense fallback={<EbookGridSkeleton />}>
+        <EbookGrid books={books} />
+      </Suspense>
     </div>
   );
 }

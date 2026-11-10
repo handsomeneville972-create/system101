@@ -1,6 +1,7 @@
 "use server";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -12,6 +13,12 @@ export async function joinNotify(_prev: FormState, formData: FormData): Promise<
 
   if (!EMAIL_RE.test(email) || email.length > 254) return { error: "Enter a valid email." };
   if (surface !== "apps" && surface !== "decourse") return { error: "Unknown list." };
+
+  const limited = await actionRateLimit("notify.join", null, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const admin = supabaseAdmin();
   const { error } = await admin

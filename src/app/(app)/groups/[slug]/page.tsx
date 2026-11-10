@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { groupBySlug } from "@/lib/data/groups";
-import { groupSignals } from "@/lib/data/suggy";
+import { groupSignals, type GroupSignal } from "@/lib/data/suggy";
+import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { getUser } from "@/lib/auth";
 import { interestLabel } from "@/lib/domain";
 import { JoinRequestForm } from "@/components/groups/JoinRequestForm";
@@ -15,6 +17,30 @@ import { CreateSuggyForm } from "@/components/suggy/CreateSuggyForm";
 import { SuggyVotePanel } from "@/components/suggy/SuggyVotePanel";
 
 export const instant = false;
+
+async function SignalsList({
+  slug,
+  signals,
+}: {
+  slug: string;
+  signals: Promise<GroupSignal[]>;
+}) {
+  return <SuggyVotePanel slug={slug} signals={await signals} />;
+}
+
+function SignalsListSkeleton() {
+  return (
+    <LoadingRegion label="Loading signals…" className="space-y-4">
+      {Array.from({ length: 2 }).map((_, index) => (
+        <div key={index} className="rounded-lg border hairline p-4" aria-hidden="true">
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="mt-2 h-3 w-4/5" />
+          <Skeleton className="mt-3 h-7 w-32 rounded-full" />
+        </div>
+      ))}
+    </LoadingRegion>
+  );
+}
 
 export default async function GroupPage({
   params,
@@ -30,7 +56,7 @@ export default async function GroupPage({
 
   const user = await getUser();
   const memberCount = group.members.length;
-  const signals = group.isMember ? await groupSignals(group.id) : [];
+  const signals = group.isMember ? groupSignals(group.id) : Promise.resolve([]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -105,7 +131,9 @@ export default async function GroupPage({
               {group.isLeader && !group.active && (
                 <p className="text-sm text-zinc-500">Activate the group to post signals.</p>
               )}
-              <SuggyVotePanel slug={group.slug} signals={signals} />
+              <Suspense fallback={<SignalsListSkeleton />}>
+                <SignalsList slug={group.slug} signals={signals} />
+              </Suspense>
             </div>
           </div>
           <div className="card p-6">
@@ -162,7 +190,7 @@ export default async function GroupPage({
         <div className="card mt-6 p-6">
           <p className="text-sm text-zinc-400">Sign in to request to join.</p>
           <Link
-            href={`/auth/sign-in?next=/groups/${group.slug}`}
+            href={`/?mode=signin&next=/groups/${group.slug}`}
             className="btn-pill mt-4 inline-block bg-white px-5 py-2.5 text-sm font-medium text-black"
           >
             Sign in

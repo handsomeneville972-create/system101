@@ -8,8 +8,9 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-  title: `${SITE.name} · Grow`,
-  description: "Find your people. Build. Grow.",
+  title: `${SITE.name} · A room for your ambition`,
+  description:
+    "Sign in to your rooms or create a member account. De`System is a members' network for builders.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -19,8 +20,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: `${SITE.name} · Grow`,
-    description: "Find your people. Build. Grow.",
+    title: `${SITE.name} · A room for your ambition`,
+    description:
+      "Sign in to your rooms or create a member account. A members' network for builders.",
     images: ["/og-image.png"],
   },
   twitter: {

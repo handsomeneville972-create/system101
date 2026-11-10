@@ -1,6 +1,8 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { supabasePublic } from "@/lib/supabase-public";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
+import { PUBLIC_FEED_CACHE, TAGS } from "@/lib/cache";
 
 export type FeedSignal = {
   id: string;
@@ -30,9 +32,12 @@ function pickGroup(g: RawFeed["groups"]) {
   return Array.isArray(g) ? g[0] ?? null : g;
 }
 
-export async function publishedFeed(limit = 30): Promise<FeedSignal[]> {
-  const sb = await supabaseServer();
-  const user = await getUser();
+async function publishedFeedRows(limit: number): Promise<RawFeed[]> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.suggy);
+
+  const sb = supabasePublic();
   const { data } = await sb
     .from("suggies")
     .select(
@@ -42,7 +47,14 @@ export async function publishedFeed(limit = 30): Promise<FeedSignal[]> {
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  return ((data ?? []) as RawFeed[]).map((s) => {
+  return (data ?? []) as RawFeed[];
+}
+
+export async function publishedFeed(limit = 30): Promise<FeedSignal[]> {
+  // The public rows are cacheable; the viewer's own vote is overlaid per request.
+  const [rows, user] = await Promise.all([publishedFeedRows(limit), getUser()]);
+
+  return rows.map((s) => {
     const votes = s.suggy_global_votes ?? [];
     const group = pickGroup(s.groups);
     return {
@@ -68,6 +80,10 @@ export type TrendingSignal = {
 };
 
 export async function trendingSignals(limit = 5): Promise<TrendingSignal[]> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.suggy);
+
   const sb = supabasePublic();
   const { data } = await sb
     .from("suggies")

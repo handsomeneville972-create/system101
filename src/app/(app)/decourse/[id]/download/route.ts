@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getUser } from "@/lib/auth";
+import { RATE_LIMITS, rateLimit, requestIp } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/http";
+
+export const maxDuration = 15;
+
+const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const limited = rateLimit(
+    `download.course:${requestIp(_req.headers)}`,
+    RATE_LIMITS.download
+  );
+  if (!limited.ok) return tooManyRequests(limited);
+
   const { id } = await params;
   const admin = supabaseAdmin();
 
@@ -33,5 +45,5 @@ export async function GET(
     return NextResponse.json({ error: "Could not create download" }, { status: 500 });
   }
 
-  return NextResponse.redirect(signed.signedUrl);
+  return NextResponse.redirect(signed.signedUrl, { headers: NO_STORE });
 }

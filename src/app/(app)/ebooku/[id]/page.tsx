@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Download, Star } from "lucide-react";
 import { BuyButton } from "@/components/ebooku/BuyButton";
 import { ReviewForm } from "@/components/ebooku/ReviewForm";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { ebookDetail } from "@/lib/data/ebooks";
 import { getProfile } from "@/lib/auth";
 import { removeEbook } from "@/lib/actions/ebooks";
@@ -88,7 +89,12 @@ export default async function EbookPage({
           {ebook.is_uploader && (
             <form action={removeEbook} className="mt-3">
               <input type="hidden" name="ebook_id" value={ebook.id} />
-              <button className="text-xs text-zinc-500 hover:text-red-400">Remove listing</button>
+              <SubmitButton
+                pendingText="Removing…"
+                className="text-xs text-zinc-500 hover:text-red-400"
+              >
+                Remove listing
+              </SubmitButton>
             </form>
           )}
         </div>
@@ -136,7 +142,7 @@ export default async function EbookPage({
             />
           ) : (
             <Link
-              href={`/auth/sign-in?next=/ebooku/${ebook.id}`}
+              href={`/?mode=signin&next=/ebooku/${ebook.id}`}
               className="text-sm text-zinc-300 underline"
             >
               Sign in to review

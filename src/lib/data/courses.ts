@@ -1,6 +1,8 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { supabasePublic } from "@/lib/supabase-public";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
+import { PUBLIC_FEED_CACHE, TAGS } from "@/lib/cache";
 
 export type CourseLevel = "beginner" | "intermediate" | "advanced";
 
@@ -32,6 +34,10 @@ function nameOf(p: ProfileJoin): string | null {
 }
 
 export async function listCourses(limit = 60): Promise<CourseListItem[]> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.courses);
+
   const sb = supabasePublic();
   const { data } = await sb
     .from("courses")

@@ -1,8 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
+import { TAGS } from "@/lib/cache";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -17,6 +19,11 @@ function parseHashtags(raw: string): string[] {
 export async function createSuggy(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("suggy.create", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const groupId = String(formData.get("group_id") ?? "");
@@ -52,6 +59,11 @@ export async function createSuggy(_prev: FormState, formData: FormData): Promise
 export async function voteSuggy(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("suggy.vote", user.id, {
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const suggyId = String(formData.get("suggy_id") ?? "");
@@ -67,6 +79,7 @@ export async function voteSuggy(_prev: FormState, formData: FormData): Promise<F
   if (error) return { error: error.message };
 
   await sb.rpc("settle_suggy", { p_suggy: suggyId });
+  updateTag(TAGS.suggy);
   revalidatePath(`/groups/${slug}`);
   revalidatePath("/suggy");
   return { ok: true };
@@ -78,6 +91,11 @@ export async function voteGlobalSuggy(
 ): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in to vote." };
+  const limited = await actionRateLimit("suggy.vote.global", user.id, {
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const suggyId = String(formData.get("suggy_id") ?? "");
@@ -88,6 +106,7 @@ export async function voteGlobalSuggy(
     .upsert({ suggy_id: suggyId, voter_id: user.id, up });
   if (error) return { error: error.message };
 
+  updateTag(TAGS.suggy);
   revalidatePath("/suggy");
   return { ok: true };
 }

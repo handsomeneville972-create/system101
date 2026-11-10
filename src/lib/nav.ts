@@ -53,7 +53,6 @@ export const SITE = {
 } as const;
 
 export const COMPANY_LINKS: TextLink[] = [
-  { href: "/#about", label: "About us" },
   { href: `mailto:${SITE.email}`, label: "Contact" },
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },

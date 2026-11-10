@@ -18,7 +18,7 @@ export function PublishPayButton({ appId, fee }: { appId: string; fee: string })
         body: JSON.stringify({ app_id: appId }),
       });
       if (res.status === 401) {
-        router.push(`/auth/sign-in?next=${encodeURIComponent(`/apps/publish/checkout/${appId}`)}`);
+        router.push(`/?mode=signin&next=${encodeURIComponent(`/apps/publish/checkout/${appId}`)}`);
         return;
       }
       const data = await res.json();

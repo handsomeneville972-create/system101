@@ -1,11 +1,13 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
+import { TAGS } from "@/lib/cache";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -44,6 +46,11 @@ export async function prepareUpload(input: {
 }): Promise<{ error: string } | { file: UploadTarget; cover: UploadTarget }> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("ebooks.upload.prepare", user.id, {
+    limit: 30,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const fileExt = input.fileExt.toLowerCase().replace(/^\./, "");
   const coverExt = input.coverExt.toLowerCase().replace(/^\./, "");
@@ -68,6 +75,11 @@ export async function prepareUpload(input: {
 export async function createEbook(formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("ebooks.create", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -141,6 +153,7 @@ export async function createEbook(formData: FormData): Promise<FormState> {
 
   if (error || !data) return { error: error?.message ?? "Could not publish." };
 
+  updateTag(TAGS.ebooks);
   revalidatePath("/ebooku");
   redirect(`/ebooku/${data.id}`);
 }
@@ -148,6 +161,11 @@ export async function createEbook(formData: FormData): Promise<FormState> {
 export async function createReview(prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in to review." };
+  const limited = await actionRateLimit("ebooks.review", user.id, {
+    limit: 10,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const ebookId = String(formData.get("ebook_id") ?? "");
   const rating = Number(formData.get("rating") ?? 0);
@@ -168,19 +186,21 @@ export async function createReview(prev: FormState, formData: FormData): Promise
   );
   if (error) return { error: error.message };
 
+  updateTag(TAGS.ebooks);
   revalidatePath(`/ebooku/${ebookId}`);
   return { ok: true };
 }
 
 export async function removeEbook(formData: FormData) {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in");
+  if (!user) redirect("/?mode=signin");
   const id = String(formData.get("ebook_id") ?? "");
   if (!id) return;
 
   const sb = await supabaseServer();
   await sb.from("ebooks").update({ status: "removed" }).eq("id", id).eq("uploader_id", user.id);
 
+  updateTag(TAGS.ebooks);
   revalidatePath("/ebooku");
   redirect("/ebooku");
 }

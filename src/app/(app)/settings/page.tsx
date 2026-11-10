@@ -9,7 +9,7 @@ export const instant = false;
 
 export default async function Settings() {
   const profile = await getProfile();
-  if (!profile) redirect("/auth/sign-in?next=/settings");
+  if (!profile) redirect("/?mode=signin&next=/settings");
   const avatarUrl = await signedAvatar(profile.avatar_url);
 
   return (

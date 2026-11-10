@@ -3,12 +3,13 @@ import { INTERESTS } from "@/lib/domain";
 import { completeOnboarding } from "@/lib/actions/auth";
 import { getUser } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabase-server";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const instant = false;
 
 export default async function Onboarding() {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in?next=/onboarding");
+  if (!user) redirect("/?mode=signin&next=/onboarding");
 
   const sb = await supabaseServer();
   const { data: profile } = await sb
@@ -52,9 +53,12 @@ export default async function Onboarding() {
           rows={2}
           className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
         />
-        <button className="btn-pill bg-white px-6 py-2.5 text-sm font-medium text-black">
+        <SubmitButton
+          pendingText="Saving…"
+          className="btn-pill bg-white px-6 py-2.5 text-sm font-medium text-black"
+        >
           Continue
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

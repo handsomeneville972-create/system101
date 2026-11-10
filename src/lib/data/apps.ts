@@ -1,7 +1,9 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabasePublic } from "@/lib/supabase-public";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
+import { PUBLIC_FEED_CACHE, TAGS } from "@/lib/cache";
 
 export type AppListItem = {
   id: string;
@@ -75,6 +77,10 @@ async function withIcons(rows: Record<string, unknown>[]): Promise<AppListItem[]
 }
 
 export async function listApps(limit = 60): Promise<AppListItem[]> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.apps);
+
   const sb = supabasePublic();
   const { data } = await sb
     .from("apps")
@@ -90,6 +96,10 @@ export async function appsByUploader(
   uploaderId: string,
   limit = 6
 ): Promise<AppListItem[]> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.apps);
+
   const sb = supabasePublic();
   const { data } = await sb
     .from("apps")

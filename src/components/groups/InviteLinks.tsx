@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { regenerateInvite, revokeInvite, type FormState } from "@/lib/actions/groups";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 const initial: FormState = {};
 
@@ -60,29 +61,44 @@ function InviteRow({
         <code className="min-w-0 flex-1 truncate text-zinc-400">{path}</code>
         {status === "invited" ? (
           <>
-            <button onClick={copy} className="text-zinc-300 hover:text-white">
-              {copied ? "Copied" : "Copy"}
-            </button>
-            <form action={regen}>
-              <input type="hidden" name="invite_id" value={invite.id} />
-              <input type="hidden" name="group_id" value={groupId} />
-              <input type="hidden" name="slug" value={slug} />
-              <button className="text-zinc-500 hover:text-zinc-200">New link</button>
-            </form>
+              <button onClick={copy} className="text-zinc-300 hover:text-white">
+                {copied ? "Copied" : "Copy"}
+              </button>
+              <form action={regen}>
+                <input type="hidden" name="invite_id" value={invite.id} />
+                <input type="hidden" name="group_id" value={groupId} />
+                <input type="hidden" name="slug" value={slug} />
+                <SubmitButton
+                  className="text-zinc-500 hover:text-zinc-200"
+                  pendingText="…"
+                >
+                  New link
+                </SubmitButton>
+              </form>
           </>
         ) : status === "expired" ? (
           <form action={regen}>
             <input type="hidden" name="invite_id" value={invite.id} />
             <input type="hidden" name="group_id" value={groupId} />
             <input type="hidden" name="slug" value={slug} />
-            <button className="text-zinc-300 hover:text-white">New link</button>
+            <SubmitButton
+              className="text-zinc-300 hover:text-white"
+              pendingText="…"
+            >
+              New link
+            </SubmitButton>
           </form>
         ) : null}
         <form action={revoke}>
           <input type="hidden" name="invite_id" value={invite.id} />
           <input type="hidden" name="group_id" value={groupId} />
           <input type="hidden" name="slug" value={slug} />
-          <button className="text-zinc-600 hover:text-red-400">Remove</button>
+          <SubmitButton
+            className="text-zinc-600 hover:text-red-400"
+            pendingText="Removing…"
+          >
+            Remove
+          </SubmitButton>
         </form>
       </div>
       {(regenState.error || revokeState.error) && (

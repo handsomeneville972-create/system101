@@ -8,7 +8,7 @@ export const instant = false;
 
 export default async function PayoutSettingsPage() {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in?next=/settings/payouts");
+  if (!user) redirect("/?mode=signin&next=/settings/payouts");
 
   const account = await payoutAccount();
 

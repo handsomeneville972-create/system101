@@ -46,3 +46,8 @@ next-env.d.ts
 
 # lint
 .eslintcache
+
+# local agent scratch (logs, profiling dumps); keep shared memory
+/.opencode/*
+!/.opencode/memory/
+/build-output.log

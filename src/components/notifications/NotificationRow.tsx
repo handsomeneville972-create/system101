@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { openNotification } from "@/lib/actions/notifications";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/lib/cn";
 import {
   notificationIcon,
@@ -16,8 +17,7 @@ export function NotificationRow({ item }: { item: NotificationItem }) {
       className="border-b border-white/[0.06] last:border-b-0"
     >
       <input type="hidden" name="id" value={item.id} />
-      <button
-        type="submit"
+      <SubmitButton
         className="group flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/40"
       >
         <span
@@ -58,7 +58,7 @@ export function NotificationRow({ item }: { item: NotificationItem }) {
             {notificationTime(item.created_at)}
           </span>
         </span>
-      </button>
+      </SubmitButton>
     </form>
   );
 }

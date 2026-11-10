@@ -19,7 +19,7 @@ export default async function Suggy() {
         <div className="card mt-6 flex items-center justify-between p-4">
           <p className="text-sm text-zinc-400">Sign in to up/down signals.</p>
           <Link
-            href="/auth/sign-in?next=/suggy"
+            href="/?mode=signin&next=/suggy"
             className="btn-pill bg-white px-4 py-2 text-sm font-medium text-black"
           >
             Sign in

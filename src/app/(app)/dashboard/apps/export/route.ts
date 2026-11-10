@@ -4,12 +4,19 @@ import {
   RANGE_DAYS,
 } from "@/lib/data/analytics";
 import { getUser } from "@/lib/auth";
+import { RATE_LIMITS, rateLimit } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/http";
+
+export const maxDuration = 30;
 
 export async function GET(req: Request) {
   const user = await getUser();
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  const limited = rateLimit(`export.apps:${user.id}`, RATE_LIMITS.export);
+  if (!limited.ok) return tooManyRequests(limited);
 
   const url = new URL(req.url);
   const range = parseRange(url.searchParams.get("range") ?? undefined);

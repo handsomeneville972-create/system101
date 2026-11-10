@@ -4,6 +4,7 @@ import { Download, ExternalLink, FileText } from "lucide-react";
 import { courseDetail } from "@/lib/data/courses";
 import { embedUrl, providerLabel } from "@/lib/video";
 import { removeCourse } from "@/lib/actions/courses";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const instant = false;
 
@@ -84,7 +85,12 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
           {course.is_creator && (
             <form action={removeCourse}>
               <input type="hidden" name="course_id" value={course.id} />
-              <button className="text-xs text-zinc-500 hover:text-red-400">Remove course</button>
+              <SubmitButton
+                pendingText="Removing…"
+                className="text-xs text-zinc-500 hover:text-red-400"
+              >
+                Remove course
+              </SubmitButton>
             </form>
           )}
         </div>

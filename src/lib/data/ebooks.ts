@@ -1,7 +1,9 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabasePublic } from "@/lib/supabase-public";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
+import { PUBLIC_FEED_CACHE, TAGS } from "@/lib/cache";
 
 export type PriceFilter = "all" | "free" | "paid";
 
@@ -69,6 +71,10 @@ export async function listEbooks(
   limit = 60,
   uploaderId?: string
 ): Promise<EbookListItem[]> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.ebooks);
+
   const sb = supabasePublic();
   let q = sb
     .from("ebooks")

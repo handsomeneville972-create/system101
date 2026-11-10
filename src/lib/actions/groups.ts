@@ -1,11 +1,13 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
 import { INTERESTS } from "@/lib/domain";
+import { TAGS } from "@/lib/cache";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type FormState = { error?: string; ok?: boolean };
 
@@ -21,6 +23,11 @@ function slugify(s: string) {
 export async function createGroup(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("groups.create", user.id, {
+    limit: 5,
+    windowMs: 10 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -52,6 +59,7 @@ export async function createGroup(_prev: FormState, formData: FormData): Promise
   while (rows.length < 2) rows.push({ group_id: group.id, email: null });
   await sb.from("group_invites").insert(rows);
 
+  updateTag(TAGS.groups);
   revalidatePath("/findem");
   redirect(`/groups/${group.slug}?created=1`);
 }
@@ -59,6 +67,11 @@ export async function createGroup(_prev: FormState, formData: FormData): Promise
 export async function requestToJoin(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in to request." };
+  const limited = await actionRateLimit("groups.join", user.id, {
+    limit: 10,
+    windowMs: 10 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const groupId = String(formData.get("group_id"));
@@ -113,6 +126,11 @@ export async function cancelJoinRequest(_prev: FormState, formData: FormData): P
 export async function voteOnJoinRequest(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.vote", user.id, {
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const requestId = String(formData.get("request_id"));
@@ -126,6 +144,7 @@ export async function voteOnJoinRequest(_prev: FormState, formData: FormData): P
   if (error) return { error: error.message };
 
   await sb.rpc("settle_join_request", { p_request: requestId });
+  updateTag(TAGS.groups);
   revalidatePath(`/groups/${slug}`);
   return { ok: true };
 }
@@ -133,7 +152,7 @@ export async function voteOnJoinRequest(_prev: FormState, formData: FormData): P
 export async function acceptInvite(formData: FormData) {
   const user = await getUser();
   const token = String(formData.get("token") ?? "");
-  if (!user) redirect(`/auth/sign-in?next=${encodeURIComponent(`/groups/join?token=${token}`)}`);
+  if (!user) redirect(`/?mode=signin&next=${encodeURIComponent(`/groups/join?token=${token}`)}`);
 
   const sb = await supabaseServer();
   const { data: info } = await sb.rpc("join_invite_info", { p_token: token });
@@ -141,6 +160,10 @@ export async function acceptInvite(formData: FormData) {
 
   const { data } = await sb.rpc("accept_group_invite", { p_token: token });
   const result = data as { status?: string } | null;
+
+  if (result?.status === "accepted" || result?.status === "already_member") {
+    updateTag(TAGS.groups);
+  }
 
   if (result?.status === "accepted") redirect(slug ? `/groups/${slug}` : "/home");
   if (result?.status === "already_member") redirect(slug ? `/groups/${slug}` : "/home");
@@ -154,6 +177,11 @@ export async function acceptInvite(formData: FormData) {
 export async function regenerateInvite(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.invite.regen", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const inviteId = String(formData.get("invite_id") ?? "");
@@ -185,6 +213,11 @@ export async function regenerateInvite(_prev: FormState, formData: FormData): Pr
 export async function revokeInvite(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.invite.revoke", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const inviteId = String(formData.get("invite_id") ?? "");
@@ -209,6 +242,11 @@ export async function revokeInvite(_prev: FormState, formData: FormData): Promis
 export async function updateGroup(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.update", user.id, {
+    limit: 30,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const groupId = String(formData.get("group_id") ?? "");
@@ -234,6 +272,7 @@ export async function updateGroup(_prev: FormState, formData: FormData): Promise
     .eq("leader_id", user.id);
   if (error) return { error: error.message };
 
+  updateTag(TAGS.groups);
   revalidatePath(`/groups/${slug}`);
   revalidatePath("/findem");
   return { ok: true };
@@ -242,6 +281,11 @@ export async function updateGroup(_prev: FormState, formData: FormData): Promise
 export async function removeMember(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.member.remove", user.id, {
+    limit: 30,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const groupId = String(formData.get("group_id") ?? "");
@@ -263,6 +307,7 @@ export async function removeMember(_prev: FormState, formData: FormData): Promis
     .eq("user_id", target);
   if (error) return { error: error.message };
 
+  updateTag(TAGS.groups);
   revalidatePath(`/groups/${slug}`);
   return { ok: true };
 }
@@ -270,6 +315,11 @@ export async function removeMember(_prev: FormState, formData: FormData): Promis
 export async function transferLeader(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.leader.transfer", user.id, {
+    limit: 10,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const groupId = String(formData.get("group_id") ?? "");
@@ -295,6 +345,11 @@ export async function transferLeader(_prev: FormState, formData: FormData): Prom
 export async function leaveGroup(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.leave", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
   const sb = await supabaseServer();
 
   const groupId = String(formData.get("group_id") ?? "");
@@ -310,6 +365,7 @@ export async function leaveGroup(_prev: FormState, formData: FormData): Promise<
   if (result?.status === "not_member") return { error: "You are not a member." };
   if (result?.status !== "left") return { error: "Could not leave group." };
 
+  updateTag(TAGS.groups);
   revalidatePath("/home");
   if (result.slug) revalidatePath(`/groups/${result.slug}`);
   redirect("/home");

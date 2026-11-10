@@ -6,6 +6,7 @@ import { isAdmin } from "@/lib/admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
 import { payoutMinimumCents } from "@/lib/data/earnings";
+import { actionRateLimit } from "@/lib/action-limit";
 
 export type PayoutFormState = { error?: string; ok?: boolean };
 
@@ -15,6 +16,11 @@ export async function savePayoutAccount(
 ): Promise<PayoutFormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("payouts.account.save", user.id, {
+    limit: 10,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const bankName = String(formData.get("bank_name") ?? "").trim();
   const accountName = String(formData.get("account_name") ?? "").trim();
@@ -59,6 +65,11 @@ export async function requestPayout(
 ): Promise<PayoutFormState> {
   const user = await getUser();
   if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("payouts.request", user.id, {
+    limit: 5,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
 
   const sb = await supabaseServer();
   const minimum = payoutMinimumCents();

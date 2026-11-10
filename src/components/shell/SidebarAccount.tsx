@@ -14,11 +14,11 @@ export async function SidebarAccount() {
   if (!user) {
     return (
       <div className="space-y-0.5">
-        <Link href="/auth/sign-in" className={ROW}>
+        <Link href="/?mode=signin" className={ROW}>
           <LogIn className={ICON} aria-hidden />
           <span className={LABEL}>Sign in</span>
         </Link>
-        <Link href="/auth/sign-up" className={ROW}>
+        <Link href="/?mode=signup" className={ROW}>
           <UserPlus className={ICON} aria-hidden />
           <span className={LABEL}>Sign up</span>
         </Link>

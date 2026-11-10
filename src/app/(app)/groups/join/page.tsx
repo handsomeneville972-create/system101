@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabasePublic } from "@/lib/supabase-public";
 import { acceptInvite } from "@/lib/actions/groups";
 import { getUser } from "@/lib/auth";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const instant = false;
 
@@ -57,13 +58,16 @@ export default async function JoinPage({
       {user ? (
         <form action={acceptInvite} className="mt-6">
           <input type="hidden" name="token" value={token} />
-          <button className="btn-pill w-full bg-white py-2.5 text-sm font-medium text-black">
+          <SubmitButton
+            pendingText="Joining…"
+            className="btn-pill w-full bg-white py-2.5 text-sm font-medium text-black"
+          >
             Accept invite
-          </button>
+          </SubmitButton>
         </form>
       ) : (
         <Link
-          href={`/auth/sign-in?next=${encodeURIComponent(`/groups/join?token=${token}`)}`}
+          href={`/?mode=signin&next=${encodeURIComponent(`/groups/join?token=${token}`)}`}
           className="btn-pill mt-6 block w-full bg-white py-2.5 text-center text-sm font-medium text-black"
         >
           Sign in to accept

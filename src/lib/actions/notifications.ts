@@ -8,7 +8,7 @@ import { safeNotificationHref } from "@/lib/notifications";
 
 export async function openNotification(formData: FormData) {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in?next=/notifications");
+  if (!user) redirect("/?mode=signin&next=/notifications");
 
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/notifications");
@@ -38,7 +38,7 @@ export async function openNotification(formData: FormData) {
 
 export async function markAllRead() {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in?next=/notifications");
+  if (!user) redirect("/?mode=signin&next=/notifications");
 
   const sb = await supabaseServer();
   await sb

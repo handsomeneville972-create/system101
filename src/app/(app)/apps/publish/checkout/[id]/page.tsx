@@ -20,7 +20,7 @@ export default async function CheckoutPage({
         <p className="text-sm text-zinc-400">
           Please{" "}
           <Link
-            href={`/auth/sign-in?next=${encodeURIComponent(`/apps/publish/checkout/${id}`)}`}
+            href={`/?mode=signin&next=${encodeURIComponent(`/apps/publish/checkout/${id}`)}`}
             className="underline"
           >
             sign in

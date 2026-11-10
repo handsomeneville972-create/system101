@@ -10,7 +10,7 @@ export default async function PublishPage() {
   if (!profile) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10">
-        <p className="text-sm text-zinc-400">Please <Link href="/auth/sign-in" className="underline">sign in</Link> to share your app.</p>
+        <p className="text-sm text-zinc-400">Please <Link href="/?mode=signin" className="underline">sign in</Link> to share your app.</p>
       </div>
     );
   }

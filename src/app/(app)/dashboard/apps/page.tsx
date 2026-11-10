@@ -76,7 +76,7 @@ export default async function DashboardApps({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await getUser();
-  if (!user) redirect("/auth/sign-in?next=/dashboard/apps");
+  if (!user) redirect("/?mode=signin&next=/dashboard/apps");
 
   const query = await searchParams;
   const range = parseRange(query.range);

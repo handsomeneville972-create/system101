@@ -1,6 +1,7 @@
+import { cache } from "react";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
-import { myGroups } from "@/lib/data/groups";
+import { myGroups, type MyGroup } from "@/lib/data/groups";
 import type { NotificationFilter, NotificationItem } from "@/lib/notifications";
 
 type GroupJoin =
@@ -50,7 +51,7 @@ function sorted(map: Map<string, InboxGroup>): InboxGroup[] {
   );
 }
 
-export async function unreadCount(): Promise<number> {
+export const unreadCount = cache(async (): Promise<number> => {
   const user = await getUser();
   if (!user) return 0;
 
@@ -62,7 +63,7 @@ export async function unreadCount(): Promise<number> {
     .is("read_at", null);
 
   return count ?? 0;
-}
+});
 
 export async function listNotifications(
   filter: NotificationFilter,
@@ -93,11 +94,13 @@ export async function purgeMyNotifications(): Promise<void> {
   await sb.rpc("purge_my_notifications");
 }
 
-export async function homeInbox(): Promise<HomeInbox> {
+export async function homeInbox(groupsArg?: MyGroup[]): Promise<HomeInbox> {
   const user = await getUser();
   if (!user) return { unread: 0, requests: [], signals: [] };
 
-  const groups = await myGroups();
+  // Home already loads memberships. Accepting them avoids a duplicate query
+  // (and a duplicate auth lookup) on the most common signed-in page.
+  const groups = groupsArg ?? (await myGroups());
   const groupIds = groups
     .map((item) => item.group?.id)
     .filter((id): id is string => !!id);

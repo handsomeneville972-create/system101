@@ -1,6 +1,9 @@
+import { cache } from "react";
+import { cacheLife, cacheTag } from "next/cache";
 import { supabasePublic } from "@/lib/supabase-public";
 import { supabaseServer } from "@/lib/supabase-server";
 import { getUser } from "@/lib/auth";
+import { PUBLIC_FEED_CACHE, TAGS } from "@/lib/cache";
 
 export type GroupRow = {
   id: string;
@@ -13,6 +16,10 @@ export type GroupRow = {
 };
 
 export async function interestCounts(): Promise<Record<string, number>> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.groups);
+
   const sb = supabasePublic();
   const { data } = await sb.from("groups").select("interest");
   const counts: Record<string, number> = {};
@@ -23,6 +30,10 @@ export async function interestCounts(): Promise<Record<string, number>> {
 }
 
 export async function groupsByInterest(slug: string): Promise<GroupRow[]> {
+  "use cache";
+  cacheLife(PUBLIC_FEED_CACHE);
+  cacheTag(TAGS.groups);
+
   const sb = supabasePublic();
   const { data } = await sb
     .from("groups")
@@ -78,23 +89,40 @@ export type GroupDetail = {
 
 export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   const sb = await supabaseServer();
-  const { data: group } = await sb
-    .from("groups")
-    .select("id, slug, name, interest, rules, active, leader_id")
-    .eq("slug", slug)
-    .maybeSingle();
+
+  // The user lookup and group lookup are independent. Run them together.
+  const [groupResult, user] = await Promise.all([
+    sb
+      .from("groups")
+      .select("id, slug, name, interest, rules, active, leader_id")
+      .eq("slug", slug)
+      .maybeSingle(),
+    getUser(),
+  ]);
+  const group = groupResult.data;
   if (!group) return null;
 
-  const user = await getUser();
+  // Settle and read members together, but settling can add members (an
+  // approved request becomes a group_member). Re-read only when the RPC
+  // actually settled something so the common path stays one round trip.
+  const [membersResult, settleResult] = await Promise.all([
+    sb
+      .from("group_members")
+      .select("user_id, role, profiles(display_name)")
+      .eq("group_id", group.id),
+    user ? sb.rpc("settle_due_join_requests", { p_group: group.id }) : Promise.resolve(null),
+  ]);
 
-  if (user) {
-    await sb.rpc("settle_due_join_requests", { p_group: group.id });
-  }
-
-  const { data: members } = await sb
-    .from("group_members")
-    .select("user_id, role, profiles(display_name)")
-    .eq("group_id", group.id);
+  const settledCount = typeof settleResult?.data === "number" ? settleResult.data : 0;
+  const members =
+    settledCount > 0
+      ? (
+          await sb
+            .from("group_members")
+            .select("user_id, role, profiles(display_name)")
+            .eq("group_id", group.id)
+        ).data
+      : membersResult.data;
 
   const memberList = (members ?? []).map((m: Record<string, unknown>) => {
     const p = m.profiles as { display_name: string | null } | { display_name: string | null }[] | null;
@@ -109,62 +137,25 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   const isMember = !!user && memberList.some((m) => m.user_id === user.id);
   const isLeader = !!user && group.leader_id === user.id;
 
-  if (isMember) {
-    await sb.rpc("settle_due_suggies", { p_group: group.id });
-  }
-
-  let invites: GroupDetail["invites"] = [];
-  if (isLeader) {
-    const { data: inv } = await sb
+  const loadInvites = async (): Promise<GroupDetail["invites"]> => {
+    if (!isLeader) return [];
+    const { data } = await sb
       .from("group_invites")
       .select("id, token, email, status, expires_at")
       .eq("group_id", group.id)
       .order("created_at");
-    invites = (inv ?? []) as GroupDetail["invites"];
-  }
+    return (data ?? []) as GroupDetail["invites"];
+  };
 
-  let pendingRequest: GroupDetail["pendingRequest"] = null;
-  let lastDenied: GroupDetail["lastDenied"] = null;
-  if (user && !isMember) {
-    const { data: pr } = await sb
-      .from("join_requests")
-      .select("id, reason")
-      .eq("group_id", group.id)
-      .eq("user_id", user.id)
-      .eq("status", "pending")
-      .maybeSingle();
-    pendingRequest = (pr as GroupDetail["pendingRequest"]) ?? null;
-
-    const { data: dn } = await sb
-      .from("join_requests")
-      .select("outcome_reason, decided_at")
-      .eq("group_id", group.id)
-      .eq("user_id", user.id)
-      .eq("status", "denied")
-      .order("decided_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (dn?.decided_at) {
-      const decided = new Date(dn.decided_at as string);
-      const retry = new Date(decided.getTime() + 7 * 24 * 60 * 60 * 1000);
-      lastDenied = {
-        reason: (dn.outcome_reason as string | null) ?? null,
-        decided_at: decided.toISOString(),
-        retry_at: retry.toISOString(),
-      };
-    }
-  }
-
-  let openRequests: GroupDetail["openRequests"] = [];
-  if (isMember) {
-    const { data: reqs } = await sb
+  const loadOpenRequests = async (): Promise<GroupDetail["openRequests"]> => {
+    if (!isMember) return [];
+    const { data } = await sb
       .from("join_requests")
       .select("id, user_id, reason, profiles(display_name), request_votes(yes, voter_id)")
       .eq("group_id", group.id)
       .eq("status", "pending");
 
-    openRequests = (reqs ?? []).map((r: Record<string, unknown>) => {
+    return (data ?? []).map((r: Record<string, unknown>) => {
       const p = r.profiles as { display_name: string | null } | { display_name: string | null }[] | null;
       const prof = Array.isArray(p) ? p[0] : p;
       const votes = (r.request_votes as { yes: boolean; voter_id: string }[] | null) ?? [];
@@ -178,7 +169,62 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
         my_vote: user ? votes.find((v) => v.voter_id === user.id)?.yes ?? null : null,
       };
     });
-  }
+  };
+
+  // One query covers both the pending application and the latest denial.
+  const loadOwnRequests = async (): Promise<{
+    pendingRequest: GroupDetail["pendingRequest"];
+    lastDenied: GroupDetail["lastDenied"];
+  }> => {
+    if (!user || isMember) return { pendingRequest: null, lastDenied: null };
+
+    const { data } = await sb
+      .from("join_requests")
+      .select("id, reason, outcome_reason, status, decided_at")
+      .eq("group_id", group.id)
+      .eq("user_id", user.id)
+      .in("status", ["pending", "denied"]);
+
+    const rows = (data ?? []) as {
+      id: string;
+      reason: string;
+      outcome_reason: string | null;
+      status: string;
+      decided_at: string | null;
+    }[];
+
+    const pending = rows.find((row) => row.status === "pending") ?? null;
+    const denied = rows
+      .filter((row) => row.status === "denied" && row.decided_at)
+      .sort((a, b) => (a.decided_at! < b.decided_at! ? 1 : -1))[0];
+
+    if (!denied?.decided_at) {
+      return {
+        pendingRequest: pending ? { id: pending.id, reason: pending.reason } : null,
+        lastDenied: null,
+      };
+    }
+
+    const decided = new Date(denied.decided_at);
+    const retry = new Date(decided.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return {
+      pendingRequest: pending ? { id: pending.id, reason: pending.reason } : null,
+      lastDenied: {
+        reason: denied.outcome_reason,
+        decided_at: decided.toISOString(),
+        retry_at: retry.toISOString(),
+      },
+    };
+  };
+
+  // These reads are independent of one another. Settling due suggies only
+  // changes signal state, so it can run alongside the member-facing reads.
+  const [invites, openRequests, ownRequests] = await Promise.all([
+    loadInvites(),
+    loadOpenRequests(),
+    loadOwnRequests(),
+    isMember ? sb.rpc("settle_due_suggies", { p_group: group.id }) : Promise.resolve(null),
+  ]);
 
   return {
     ...(group as Omit<GroupDetail, "members" | "invites" | "isMember" | "isLeader" | "pendingRequest" | "lastDenied" | "openRequests">),
@@ -186,8 +232,8 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
     invites,
     isMember,
     isLeader,
-    pendingRequest,
-    lastDenied,
+    pendingRequest: ownRequests.pendingRequest,
+    lastDenied: ownRequests.lastDenied,
     openRequests,
   };
 }
@@ -197,7 +243,7 @@ export type MyGroup = {
   group: { id: string; slug: string; name: string; interest: string; active: boolean } | null;
 };
 
-export async function myGroups(): Promise<MyGroup[]> {
+export const myGroups = cache(async (): Promise<MyGroup[]> => {
   const user = await getUser();
   if (!user) return [];
   const sb = await supabaseServer();
@@ -209,4 +255,4 @@ export async function myGroups(): Promise<MyGroup[]> {
     role: row.role as string,
     group: (Array.isArray(row.groups) ? row.groups[0] : row.groups) as MyGroup["group"],
   }));
-}
+});
