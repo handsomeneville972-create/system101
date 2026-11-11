@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { supabaseFetch } from "@/lib/supabase-fetch";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
@@ -10,6 +11,11 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
  * concurrent users while avoiding a new client for every data call.
  */
 export const supabaseServer = cache(async () => {
+  // Supabase auth initialisation reads the clock (token expiry) and reading a
+  // cookie does not defer rendering on its own. Without this, any Supabase call
+  // inside a Suspense boundary throws on `Date.now()` during prerender.
+  await connection();
+
   const store = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -108,6 +108,7 @@ function SidebarSection({
   pathname,
   collapsed,
   divider,
+  messages,
   inbox,
 }: {
   title: string;
@@ -115,6 +116,7 @@ function SidebarSection({
   pathname: string;
   collapsed: boolean;
   divider?: boolean;
+  messages?: ReactNode;
   inbox?: ReactNode;
 }) {
   return (
@@ -143,6 +145,7 @@ function SidebarSection({
             </li>
           );
         })}
+        {messages ? <li>{messages}</li> : null}
         {inbox ? <li>{inbox}</li> : null}
       </ul>
     </section>
@@ -152,10 +155,12 @@ function SidebarSection({
 export function AppSidebar({
   account,
   company,
+  messages,
   inbox,
 }: {
   account: ReactNode;
   company: ReactNode;
+  messages?: ReactNode;
   inbox?: ReactNode;
 }) {
   const {
@@ -293,6 +298,7 @@ export function AppSidebar({
               pathname={pathname}
               collapsed={collapsed}
               divider
+              messages={messages}
               inbox={inbox}
             />
             <SidebarSection

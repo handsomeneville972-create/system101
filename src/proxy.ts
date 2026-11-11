@@ -4,6 +4,7 @@ import { supabaseFetch } from "@/lib/supabase-fetch";
 
 const PROTECTED = [
   "/home",
+  "/messages",
   "/notifications",
   "/groups/new",
   "/onboarding",

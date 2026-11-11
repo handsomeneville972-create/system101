@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { MessageSquare } from "lucide-react";
 import { groupBySlug } from "@/lib/data/groups";
 import { groupSignals, type GroupSignal } from "@/lib/data/suggy";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
@@ -60,15 +61,26 @@ export default async function GroupPage({
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{group.name}</h1>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs ${
-            group.active ? "bg-white/10 text-zinc-200" : "border hairline text-zinc-400"
-          }`}
-        >
-          {group.active ? "active" : "forming"}
-        </span>
+        <div className="flex items-center gap-2">
+          {group.isMember && (
+            <Link
+              href={`/messages/${group.slug}`}
+              className="btn-pill inline-flex items-center gap-1.5 bg-white px-3.5 py-1.5 text-xs font-medium text-black transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+            >
+              <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+              Open chat
+            </Link>
+          )}
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs ${
+              group.active ? "bg-white/10 text-zinc-200" : "border hairline text-zinc-400"
+            }`}
+          >
+            {group.active ? "active" : "forming"}
+          </span>
+        </div>
       </div>
       <p className="mt-1 text-sm text-zinc-400">
         {interestLabel(group.interest) ?? "Interest"} · {memberCount}{" "}

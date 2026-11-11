@@ -2169,4 +2169,382 @@ $$;
 revoke all on function public.seller_earnings() from public, anon;
 grant execute on function public.seller_earnings() to authenticated;
 
+-- =========================================================
+-- 15) Messaging — group conversations, messages, images, reads
+-- =========================================================
+-- Conversations are deliberately generic: group_id is populated for group
+-- chats today, and direct-message conversations can be added later without
+-- changing the messages table or its indexes.
+
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null default 'group' check (kind in ('group','direct')),
+  group_id uuid references public.groups(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint conversations_target check (
+    (kind = 'group' and group_id is not null) or
+    (kind = 'direct' and group_id is null)
+  )
+);
+
+create unique index if not exists uq_conversations_group
+  on public.conversations(group_id)
+  where group_id is not null;
+
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  sender_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null default '',
+  attachment_path text,
+  attachment_mime text,
+  attachment_bytes int,
+  attachment_width int,
+  attachment_height int,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint messages_body_len check (char_length(body) <= 4000),
+  constraint messages_payload check (
+    deleted_at is not null
+    or char_length(btrim(body)) > 0
+    or attachment_path is not null
+  ),
+  constraint messages_attachment check (
+    attachment_path is null
+    or (
+      attachment_mime is not null
+      and attachment_mime in ('image/jpeg','image/png','image/webp','image/gif')
+      and attachment_bytes is not null
+      and attachment_bytes between 1 and 5242880
+    )
+  )
+);
+
+create table if not exists public.conversation_reads (
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (conversation_id, user_id)
+);
+
+create index if not exists idx_messages_conversation_created
+  on public.messages(conversation_id, created_at desc, id desc);
+create index if not exists idx_messages_sender_created
+  on public.messages(sender_id, created_at desc);
+create index if not exists idx_conversation_reads_user
+  on public.conversation_reads(user_id);
+
+-- Group membership is the source of truth for group chat access. Direct
+-- conversations will extend this helper when they ship.
+create or replace function public.is_conversation_member(cid uuid, uid uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1
+    from public.conversations c
+    join public.group_members m on m.group_id = c.group_id
+    where c.id = cid and m.user_id = uid
+  );
+$$;
+
+revoke all on function public.is_conversation_member(uuid, uuid) from public, anon;
+grant execute on function public.is_conversation_member(uuid, uuid) to authenticated;
+
+-- One conversation per group, created with the group and backfilled below.
+create or replace function public.create_group_conversation()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.conversations(kind, group_id)
+  values ('group', new.id)
+  on conflict do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists groups_create_conversation on public.groups;
+create trigger groups_create_conversation
+  after insert on public.groups
+  for each row execute function public.create_group_conversation();
+
+insert into public.conversations(kind, group_id)
+select 'group', g.id from public.groups g
+on conflict do nothing;
+
+-- Backstop for direct REST writes: the app rate limit is not enough because
+-- an authenticated user can POST to PostgREST without going through Next.
+create or replace function public.enforce_message_rate()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (
+    select count(*)
+    from public.messages
+    where sender_id = new.sender_id
+      and created_at > now() - interval '60 seconds'
+  ) >= 30 then
+    raise exception 'You are sending messages too quickly. Try again in a moment.'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists messages_rate_limit on public.messages;
+create trigger messages_rate_limit
+  before insert on public.messages
+  for each row execute function public.enforce_message_rate();
+
+-- RLS: chat contents are member-only. Attachment paths must stay in the
+-- sender's own folder for the conversation.
+alter table public.conversations enable row level security;
+
+drop policy if exists "conversations member read" on public.conversations;
+create policy "conversations member read" on public.conversations
+  for select to authenticated
+  using (public.is_conversation_member(id, (select auth.uid())));
+
+revoke all on public.conversations from anon, authenticated;
+grant select on public.conversations to authenticated;
+
+alter table public.messages enable row level security;
+
+drop policy if exists "messages member read" on public.messages;
+create policy "messages member read" on public.messages
+  for select to authenticated
+  using (public.is_conversation_member(conversation_id, (select auth.uid())));
+
+drop policy if exists "messages member insert" on public.messages;
+create policy "messages member insert" on public.messages
+  for insert to authenticated
+  with check (
+    sender_id = (select auth.uid())
+    and deleted_at is null
+    and public.is_conversation_member(conversation_id, (select auth.uid()))
+    and (
+      attachment_path is null
+      or (
+        split_part(attachment_path, '/', 1) = conversation_id::text
+        and split_part(attachment_path, '/', 2) = (select auth.uid())::text
+        and split_part(attachment_path, '/', 3) <> ''
+      )
+    )
+  );
+
+revoke all on public.messages from anon, authenticated;
+grant select, insert on public.messages to authenticated;
+
+alter table public.conversation_reads enable row level security;
+
+drop policy if exists "conversation reads own" on public.conversation_reads;
+create policy "conversation reads own" on public.conversation_reads
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    and public.is_conversation_member(conversation_id, (select auth.uid()))
+  );
+
+revoke all on public.conversation_reads from anon, authenticated;
+grant select on public.conversation_reads to authenticated;
+
+create or replace function public.mark_conversation_read(p_conversation uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'Please sign in.' using errcode = 'P0001';
+  end if;
+  if not public.is_conversation_member(p_conversation, v_uid) then
+    raise exception 'You are not a member of this chat.' using errcode = 'P0001';
+  end if;
+
+  insert into public.conversation_reads(conversation_id, user_id, last_read_at)
+  values (p_conversation, v_uid, now())
+  on conflict (conversation_id, user_id) do update
+    set last_read_at = greatest(public.conversation_reads.last_read_at, excluded.last_read_at);
+end;
+$$;
+
+revoke all on function public.mark_conversation_read(uuid) from public, anon;
+grant execute on function public.mark_conversation_read(uuid) to authenticated;
+
+-- Author or group leader may remove a message. The old attachment path is
+-- returned so the server action can delete the stored object.
+create or replace function public.delete_message(p_message uuid)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_msg public.messages;
+  v_leader boolean;
+begin
+  if v_uid is null then
+    raise exception 'Please sign in.' using errcode = 'P0001';
+  end if;
+
+  select * into v_msg from public.messages where id = p_message for update;
+  if not found then
+    raise exception 'Message not found.' using errcode = 'P0001';
+  end if;
+
+  select exists (
+    select 1
+    from public.conversations c
+    join public.groups g on g.id = c.group_id
+    where c.id = v_msg.conversation_id and g.leader_id = v_uid
+  ) into v_leader;
+
+  if not v_leader and not public.is_conversation_member(v_msg.conversation_id, v_uid) then
+    raise exception 'You are not a member of this chat.' using errcode = 'P0001';
+  end if;
+  if v_msg.sender_id <> v_uid and not v_leader then
+    raise exception 'You cannot remove this message.' using errcode = 'P0001';
+  end if;
+  if v_msg.deleted_at is not null then
+    return null;
+  end if;
+
+  update public.messages
+  set deleted_at = now(),
+      body = '',
+      attachment_path = null,
+      attachment_mime = null,
+      attachment_bytes = null,
+      attachment_width = null,
+      attachment_height = null
+  where id = p_message;
+
+  return v_msg.attachment_path;
+end;
+$$;
+
+revoke all on function public.delete_message(uuid) from public, anon;
+grant execute on function public.delete_message(uuid) to authenticated;
+
+create or replace function public.unread_message_count()
+returns int language sql stable security invoker set search_path = public as $$
+  select coalesce(count(*), 0)::int
+  from public.messages m
+  join public.conversations c on c.id = m.conversation_id
+  left join public.conversation_reads r
+    on r.conversation_id = c.id and r.user_id = (select auth.uid())
+  where (select auth.uid()) is not null
+    and public.is_conversation_member(c.id, (select auth.uid()))
+    and m.sender_id <> (select auth.uid())
+    and m.deleted_at is null
+    and m.created_at > coalesce(r.last_read_at, 'epoch'::timestamptz);
+$$;
+
+revoke all on function public.unread_message_count() from public, anon;
+grant execute on function public.unread_message_count() to authenticated;
+
+create or replace function public.my_conversations()
+returns table (
+  conversation_id uuid,
+  group_slug text,
+  group_name text,
+  group_active boolean,
+  last_body text,
+  last_has_image boolean,
+  last_sender text,
+  last_at timestamptz,
+  unread_count int
+)
+language sql stable security invoker set search_path = public as $$
+  select
+    c.id,
+    g.slug,
+    g.name,
+    g.active,
+    lm.body,
+    (lm.id is not null and lm.attachment_path is not null),
+    coalesce(p.display_name, 'Member'),
+    lm.created_at,
+    coalesce((
+      select count(*)
+      from public.messages um
+      where um.conversation_id = c.id
+        and um.sender_id <> (select auth.uid())
+        and um.deleted_at is null
+        and um.created_at > coalesce(r.last_read_at, 'epoch'::timestamptz)
+    ), 0)::int
+  from public.conversations c
+  join public.groups g on g.id = c.group_id
+  join public.group_members gm
+    on gm.group_id = g.id and gm.user_id = (select auth.uid())
+  left join public.conversation_reads r
+    on r.conversation_id = c.id and r.user_id = (select auth.uid())
+  left join lateral (
+    select m.id, m.body, m.attachment_path, m.created_at, m.sender_id
+    from public.messages m
+    where m.conversation_id = c.id and m.deleted_at is null
+    order by m.created_at desc, m.id desc
+    limit 1
+  ) lm on true
+  left join public.profiles p on p.id = lm.sender_id
+  where (select auth.uid()) is not null
+  order by lm.created_at desc nulls last, g.name asc;
+$$;
+
+revoke all on function public.my_conversations() from public, anon;
+grant execute on function public.my_conversations() to authenticated;
+
+-- Realtime publication. Postgres Changes evaluates the select policy for each
+-- subscriber, so users only receive messages from chats they can read.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end;
+$$;
+
+-- Private chat image bucket. Uploads are direct from the browser, so storage
+-- RLS checks both conversation membership and the sender's own folder.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'chat',
+  'chat',
+  false,
+  5242880,
+  array['image/jpeg','image/png','image/webp','image/gif']
+)
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "chat images read" on storage.objects;
+create policy "chat images read" on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'chat'
+    and array_length(storage.foldername(name), 1) >= 2
+    and (storage.foldername(name))[1] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    and public.is_conversation_member(((storage.foldername(name))[1])::uuid, (select auth.uid()))
+  );
+
+drop policy if exists "chat images upload" on storage.objects;
+create policy "chat images upload" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'chat'
+    and array_length(storage.foldername(name), 1) >= 2
+    and (storage.foldername(name))[1] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    and (storage.foldername(name))[2] = (select auth.uid())::text
+    and public.is_conversation_member(((storage.foldername(name))[1])::uuid, (select auth.uid()))
+  );
+
+drop policy if exists "chat images delete own" on storage.objects;
+create policy "chat images delete own" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'chat'
+    and array_length(storage.foldername(name), 1) >= 2
+    and (storage.foldername(name))[2] = (select auth.uid())::text
+  );
+
 notify pgrst, 'reload schema';

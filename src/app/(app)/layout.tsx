@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/shell/AppSidebar";
 import { SidebarAccount } from "@/components/shell/SidebarAccount";
 import { SidebarCompany } from "@/components/shell/SidebarCompany";
 import { SidebarInbox } from "@/components/shell/SidebarInbox";
+import { SidebarMessages } from "@/components/shell/SidebarMessages";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
 
 function AccountFallback() {
@@ -27,6 +28,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         company={
           <Suspense fallback={null}>
             <SidebarCompany />
+          </Suspense>
+        }
+        messages={
+          <Suspense fallback={<InboxFallback />}>
+            <SidebarMessages />
           </Suspense>
         }
         inbox={
