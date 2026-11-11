@@ -3,17 +3,20 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getUser } from "@/lib/auth";
 import { RATE_LIMITS, rateLimit, requestIp } from "@/lib/rate-limit";
 import { tooManyRequests } from "@/lib/http";
+import { attachmentFilename } from "@/lib/download-name";
 
 export const maxDuration = 15;
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const wantsJson = req.headers.get("accept")?.includes("application/json") ?? false;
+
   const limited = rateLimit(
-    `download.ebook:${requestIp(_req.headers)}`,
+    `download.ebook:${requestIp(req.headers)}`,
     RATE_LIMITS.download
   );
   if (!limited.ok) return tooManyRequests(limited);
@@ -23,7 +26,7 @@ export async function GET(
 
   const { data: ebook } = await admin
     .from("ebooks")
-    .select("id,price_cents,file_path,status,uploader_id")
+    .select("id,title,price_cents,file_path,status,uploader_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -52,6 +55,12 @@ export async function GET(
 
   if (ebook.price_cents > 0 && !isUploader && !paid) {
     if (!user) {
+      if (wantsJson) {
+        return NextResponse.json(
+          { error: "Sign in to download this book." },
+          { status: 401, headers: NO_STORE }
+        );
+      }
       const url = new URL(
         `/?mode=signin&next=/ebooku/${id}`,
         process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
@@ -63,10 +72,20 @@ export async function GET(
 
   const { data: signed, error } = await admin.storage
     .from("ebook-files")
-    .createSignedUrl(ebook.file_path, 300);
+    .createSignedUrl(ebook.file_path, 300, {
+      download: attachmentFilename(
+        ebook.title ?? "book",
+        ebook.file_path,
+        "book",
+      ),
+    });
 
   if (error || !signed?.signedUrl) {
     return NextResponse.json({ error: "Could not create download" }, { status: 500 });
+  }
+
+  if (wantsJson) {
+    return NextResponse.json({ url: signed.signedUrl }, { headers: NO_STORE });
   }
 
   return NextResponse.redirect(signed.signedUrl, { headers: NO_STORE });

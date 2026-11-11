@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { FileUp, ImageUp } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { prepareUpload, createEbook } from "@/lib/actions/ebooks";
 
@@ -25,6 +26,8 @@ export function UploadForm() {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
+  const [bookName, setBookName] = useState("");
+  const [coverName, setCoverName] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -122,27 +125,64 @@ export function UploadForm() {
         placeholder="Tags (comma separated, optional)"
         className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
       />
-      <div className="flex flex-col gap-3">
-        <label className="text-xs text-zinc-400">
-          Book file — PDF/EPUB, max {MAX_FILE_MB}MB
-          <input
-            name="file"
-            type="file"
-            accept=".pdf,.epub"
-            required
-            className="mt-1 w-full text-sm text-zinc-400"
-          />
-        </label>
-        <label className="text-xs text-zinc-400">
-          Cover — JPG/PNG/WebP, max {MAX_COVER_MB}MB
-          <input
-            name="cover"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            required
-            className="mt-1 w-full text-sm text-zinc-400"
-          />
-        </label>
+      <div className="flex flex-col gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              id="file"
+              name="file"
+              type="file"
+              accept=".pdf,.epub"
+              aria-describedby="file-hint"
+              className="peer sr-only"
+              onChange={(event) =>
+                setBookName(event.target.files?.[0]?.name ?? "")
+              }
+            />
+            <label
+              htmlFor="file"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-full border hairline bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-zinc-200 transition-colors hover:bg-white/10 peer-focus-visible:ring-2 peer-focus-visible:ring-white/40"
+            >
+              <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
+              {bookName ? "Change book file" : "Choose book file"}
+            </label>
+            <span className="min-w-0 truncate text-xs text-zinc-400">
+              {bookName || "No file chosen"}
+            </span>
+          </div>
+          <p id="file-hint" className="mt-1 text-[11px] text-zinc-500">
+            PDF or EPUB · max {MAX_FILE_MB}MB
+          </p>
+        </div>
+
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              id="cover"
+              name="cover"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              aria-describedby="cover-hint"
+              className="peer sr-only"
+              onChange={(event) =>
+                setCoverName(event.target.files?.[0]?.name ?? "")
+              }
+            />
+            <label
+              htmlFor="cover"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-full border hairline bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-zinc-200 transition-colors hover:bg-white/10 peer-focus-visible:ring-2 peer-focus-visible:ring-white/40"
+            >
+              <ImageUp className="h-3.5 w-3.5" aria-hidden="true" />
+              {coverName ? "Change cover" : "Choose cover"}
+            </label>
+            <span className="min-w-0 truncate text-xs text-zinc-400">
+              {coverName || "No file chosen"}
+            </span>
+          </div>
+          <p id="cover-hint" className="mt-1 text-[11px] text-zinc-500">
+            JPG, PNG or WebP · max {MAX_COVER_MB}MB
+          </p>
+        </div>
       </div>
       <input
         name="price"

@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { BuyButton } from "@/components/ebooku/BuyButton";
 import { ReviewForm } from "@/components/ebooku/ReviewForm";
+import { DownloadButton } from "@/components/ui/download-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ebookDetail } from "@/lib/data/ebooks";
 import { getProfile } from "@/lib/auth";
@@ -75,12 +76,7 @@ export default async function EbookPage({
 
           <div className="mt-4">
             {canDownload ? (
-              <a
-                href={`/ebooku/${ebook.id}/download`}
-                className="btn-pill inline-flex items-center gap-2 bg-white px-6 py-2.5 text-sm font-medium text-black"
-              >
-                <Download size={15} /> Download
-              </a>
+              <DownloadButton endpoint={`/ebooku/${ebook.id}/download`} />
             ) : (
               <BuyButton ebookId={ebook.id} label={`Buy ${price}`} />
             )}

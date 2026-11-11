@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
 import { courseDetail } from "@/lib/data/courses";
 import { embedUrl, providerLabel } from "@/lib/video";
 import { removeCourse } from "@/lib/actions/courses";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { DownloadButton } from "@/components/ui/download-button";
 
 export const instant = false;
 
@@ -75,12 +76,11 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           {course.has_pdf && (
-            <a
-              href={`/decourse/${course.id}/download`}
-              className="btn-pill inline-flex items-center gap-2 bg-white px-5 py-2.5 text-sm font-medium text-black"
-            >
-              <Download size={15} /> Download notes
-            </a>
+            <DownloadButton
+              endpoint={`/decourse/${course.id}/download`}
+              label="Download notes"
+              againLabel="Download notes again"
+            />
           )}
           {course.is_creator && (
             <form action={removeCourse}>

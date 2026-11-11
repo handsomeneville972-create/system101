@@ -7,7 +7,7 @@ async function getYear() {
 }
 
 const LINK =
-  "flex h-9 items-center rounded-lg px-2.5 text-sm text-zinc-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40";
+  "text-xs leading-5 text-zinc-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:rounded-sm";
 
 export async function SidebarCompany() {
   const year = await getYear();
@@ -20,7 +20,7 @@ export async function SidebarCompany() {
       <h2 className="px-2.5 pb-1 text-[11px] font-medium uppercase tracking-widest text-zinc-400">
         Company
       </h2>
-      <ul className="space-y-0.5">
+      <ul className="flex flex-wrap items-center gap-x-3 px-2.5">
         {COMPANY_LINKS.map((link) => (
           <li key={link.href}>
             {link.href.startsWith("mailto:") ? (
@@ -35,7 +35,7 @@ export async function SidebarCompany() {
           </li>
         ))}
       </ul>
-      <p className="mt-2 px-2.5 text-[11px] leading-4 text-zinc-400">
+      <p className="mt-1.5 px-2.5 text-xs leading-5 text-zinc-400">
         © {year} {SITE.name} · From {SITE.company}
       </p>
     </nav>
