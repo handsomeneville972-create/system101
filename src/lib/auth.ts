@@ -10,6 +10,8 @@ export type SessionUser = {
 export type Profile = {
   id: string;
   display_name: string | null;
+  username: string;
+  username_changed_at: string | null;
   avatar_url: string | null;
   interest: string | null;
   bio: string | null;
@@ -72,7 +74,9 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const sb = await supabaseServer();
   const { data } = await sb
     .from("profiles")
-    .select("id, display_name, avatar_url, interest, bio, goals")
+    .select(
+      "id, display_name, username, username_changed_at, avatar_url, interest, bio, goals"
+    )
     .eq("id", user.id)
     .maybeSingle();
 

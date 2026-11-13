@@ -7,7 +7,12 @@ import { removeMember, transferLeader, type FormState } from "@/lib/actions/grou
 
 const initial: FormState = {};
 
-type Member = { user_id: string; role: string; display_name: string | null };
+type Member = {
+  user_id: string;
+  role: string;
+  display_name: string | null;
+  username: string | null;
+};
 
 function PendingButton({
   label,
@@ -40,7 +45,8 @@ function RemoveForm({
     <form
       action={action}
       onSubmit={(e) => {
-        if (!confirm(`Remove ${member.display_name ?? "this member"}?`)) e.preventDefault();
+        if (!confirm(`Remove ${member.username ? `@${member.username}` : "this member"}?`))
+          e.preventDefault();
       }}
     >
       <input type="hidden" name="group_id" value={groupId} />
@@ -90,7 +96,7 @@ function TransferForm({
           </option>
           {members.map((m) => (
             <option key={m.user_id} value={m.user_id}>
-              {m.display_name ?? "Member"}
+              {m.username ? `@${m.username}` : (m.display_name ?? "Member")}
             </option>
           ))}
         </select>
@@ -129,9 +135,16 @@ export function GroupMembers({
         {members.map((m) => (
           <li key={m.user_id} className="flex items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-2">
-              <Link href={`/u/${m.user_id}`} className="truncate hover:underline">
-                {m.display_name ?? "Member"}
-                {m.user_id === currentUserId ? " (you)" : ""}
+              <Link href={`/u/${m.user_id}`} className="min-w-0 hover:underline">
+                <span className="block truncate">
+                  {m.display_name ?? "Member"}
+                  {m.user_id === currentUserId ? " (you)" : ""}
+                </span>
+                {m.username && (
+                  <span className="block truncate text-xs text-zinc-500">
+                    @{m.username}
+                  </span>
+                )}
               </Link>
               {m.role !== "member" && (
                 <span className="shrink-0 text-xs text-zinc-500">{m.role}</span>

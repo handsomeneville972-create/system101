@@ -993,6 +993,11 @@ create policy "reviews self update" on public.reviews for update to authenticate
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
+-- one review per reader per book; authors may delete their own review
+drop policy if exists "reviews self delete" on public.reviews;
+create policy "reviews self delete" on public.reviews for delete to authenticated
+  using ((select auth.uid()) = user_id);
+
 -- signals and votes are immutable after creation; outcomes via settle_suggy
 drop policy if exists "suggies leader insert" on public.suggies;
 drop policy if exists "suggies leader update" on public.suggies;
@@ -2546,5 +2551,665 @@ create policy "chat images delete own" on storage.objects
     and array_length(storage.foldername(name), 1) >= 2
     and (storage.foldername(name))[2] = (select auth.uid())::text
   );
+
+-- =========================================================
+-- 16) Usernames + username-based group invites
+-- =========================================================
+
+-- 16a) profile handles
+alter table public.profiles add column if not exists username text;
+alter table public.profiles add column if not exists username_changed_at timestamptz;
+
+create or replace function public.username_reserved(p_username text)
+returns boolean language sql immutable as $$
+  select lower(coalesce(p_username, '')) = any (array[
+    'admin','api','apps','auth','dashboard','decourse','desystem','ebooku',
+    'findem','groups','help','home','inbox','messages','moderator',
+    'notifications','official','onboarding','privacy','root','settings',
+    'staff','suggy','support','system','terms'
+  ]);
+$$;
+revoke all on function public.username_reserved(text) from public, anon, authenticated;
+
+-- unique, readable placeholder derived from the display name
+create or replace function public.suggest_username(p_seed text, p_id uuid)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_base text;
+  v_candidate text;
+  v_i int := 0;
+begin
+  v_base := lower(coalesce(p_seed, ''));
+  v_base := regexp_replace(v_base, '[^a-z0-9]+', '_', 'g');
+  v_base := btrim(v_base, '_');
+  v_base := left(v_base, 12);
+  v_base := btrim(v_base, '_');
+  if v_base = '' then v_base := 'member'; end if;
+
+  loop
+    if v_i = 0 then
+      v_candidate := left(v_base, 15) || '_' || substr(replace(p_id::text, '-', ''), 1, 4);
+    else
+      v_candidate := left(v_base, 12) || '_' || substr(md5(p_id::text || ':' || v_i::text), 1, 5);
+    end if;
+    exit when not exists (
+      select 1 from public.profiles where lower(username) = v_candidate
+    );
+    v_i := v_i + 1;
+    if v_i > 40 then
+      v_candidate := 'member_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 10);
+      exit;
+    end if;
+  end loop;
+
+  return v_candidate;
+end;
+$$;
+revoke all on function public.suggest_username(text, uuid) from public, anon, authenticated;
+
+-- backfill every existing profile before the unique/not-null gates below
+do $$
+declare
+  r record;
+begin
+  for r in select id, display_name from public.profiles where username is null loop
+    update public.profiles
+      set username = public.suggest_username(r.display_name, r.id)
+      where id = r.id;
+  end loop;
+end $$;
+
+create unique index if not exists uq_profiles_username
+  on public.profiles (lower(username));
+create index if not exists idx_profiles_username_prefix
+  on public.profiles (lower(username) text_pattern_ops);
+
+alter table public.profiles drop constraint if exists profiles_username_format;
+alter table public.profiles add constraint profiles_username_format check (
+  username ~ '^[a-z0-9]([a-z0-9_]{1,18}[a-z0-9])$'
+);
+
+alter table public.profiles alter column username set not null;
+
+-- profile writes become field grants; username only changes through set_username
+revoke insert, update on public.profiles from anon, authenticated;
+grant update (display_name, avatar_url, interest, bio, goals)
+  on public.profiles to authenticated;
+
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_seed text;
+  v_username text;
+begin
+  v_seed := coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1));
+  v_username := public.suggest_username(v_seed, new.id);
+  insert into public.profiles (id, display_name, username)
+  values (
+    new.id,
+    coalesce(nullif(btrim(v_seed), ''), split_part(new.email, '@', 1)),
+    v_username
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+-- user-driven change: format + reserved + cooldown + uniqueness in one place
+create or replace function public.set_username(p_username text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  v text;
+  v_current text;
+  v_changed timestamptz;
+  v_next timestamptz;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+
+  v := lower(btrim(coalesce(p_username, '')));
+  v := regexp_replace(v, '^@+', '');
+  if v !~ '^[a-z0-9]([a-z0-9_]{1,18}[a-z0-9])$' then
+    return jsonb_build_object('status', 'invalid');
+  end if;
+  if public.username_reserved(v) then
+    return jsonb_build_object('status', 'reserved');
+  end if;
+
+  select username, username_changed_at into v_current, v_changed
+    from public.profiles where id = uid for update;
+  if not found then return jsonb_build_object('status', 'no_profile'); end if;
+
+  if v_current = v then
+    return jsonb_build_object(
+      'status', 'unchanged',
+      'username', v,
+      'next_change_at',
+        case when v_changed is null then null else v_changed + interval '7 days' end
+    );
+  end if;
+
+  if v_changed is not null and now() < v_changed + interval '7 days' then
+    return jsonb_build_object(
+      'status', 'cooldown',
+      'username', v_current,
+      'next_change_at', v_changed + interval '7 days'
+    );
+  end if;
+
+  begin
+    update public.profiles
+      set username = v, username_changed_at = now()
+      where id = uid;
+  exception when unique_violation then
+    return jsonb_build_object('status', 'taken');
+  end;
+
+  v_next := now() + interval '7 days';
+  return jsonb_build_object('status', 'ok', 'username', v, 'next_change_at', v_next);
+end;
+$$;
+revoke all on function public.set_username(text) from public, anon;
+grant execute on function public.set_username(text) to authenticated;
+
+create or replace function public.username_status(p_username text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  v text;
+  v_current text;
+  v_changed timestamptz;
+begin
+  v := lower(btrim(coalesce(p_username, '')));
+  v := regexp_replace(v, '^@+', '');
+  if v !~ '^[a-z0-9]([a-z0-9_]{1,18}[a-z0-9])$' then
+    return jsonb_build_object('status', 'invalid');
+  end if;
+  if public.username_reserved(v) then
+    return jsonb_build_object('status', 'reserved');
+  end if;
+
+  if uid is not null then
+    select username, username_changed_at into v_current, v_changed
+      from public.profiles where id = uid;
+    if v_current = v then
+      return jsonb_build_object(
+        'status', 'ok', 'self', true, 'username', v,
+        'next_change_at',
+          case when v_changed is null then null else v_changed + interval '7 days' end
+      );
+    end if;
+  end if;
+
+  if exists (select 1 from public.profiles where lower(username) = v) then
+    return jsonb_build_object('status', 'taken');
+  end if;
+  return jsonb_build_object('status', 'ok', 'username', v);
+end;
+$$;
+revoke all on function public.username_status(text) from public, anon;
+grant execute on function public.username_status(text) to authenticated;
+
+-- 16b) direct, member-only invites
+alter table public.group_invites add column if not exists invitee_id uuid
+  references public.profiles(id) on delete cascade;
+alter table public.group_invites add column if not exists responded_at timestamptz;
+
+alter table public.group_invites drop constraint if exists group_invites_status_check;
+alter table public.group_invites add constraint group_invites_status_check
+  check (status in ('invited','accepted','declined','expired'));
+
+create unique index if not exists uq_group_invites_pending_invitee
+  on public.group_invites(group_id, invitee_id)
+  where invitee_id is not null and status = 'invited';
+create index if not exists idx_group_invites_invitee
+  on public.group_invites(invitee_id, status);
+
+drop policy if exists "invites invitee read" on public.group_invites;
+create policy "invites invitee read" on public.group_invites for select to authenticated
+  using (invitee_id = (select auth.uid()));
+
+create or replace function public.validate_group_invite()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+  p public.profiles;
+begin
+  if new.invitee_id is null then return new; end if;
+
+  select * into g from public.groups where id = new.group_id;
+  if not found then raise exception 'group not found'; end if;
+  select * into p from public.profiles where id = new.invitee_id;
+  if not found then raise exception 'invitee not found'; end if;
+
+  if p.interest is distinct from g.interest then
+    raise exception 'invitee interest does not match group interest'
+      using errcode = 'check_violation';
+  end if;
+  if p.id = g.leader_id then
+    raise exception 'leader cannot be invited' using errcode = 'check_violation';
+  end if;
+  if exists (
+    select 1 from public.group_members where group_id = new.group_id and user_id = new.invitee_id
+  ) then
+    raise exception 'invitee is already a member' using errcode = 'check_violation';
+  end if;
+  if tg_op = 'INSERT' and g.active then
+    raise exception 'group is already active' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.validate_group_invite() from public, anon, authenticated;
+
+drop trigger if exists validate_group_invite on public.group_invites;
+create trigger validate_group_invite
+  before insert or update of group_id, invitee_id on public.group_invites
+  for each row execute function public.validate_group_invite();
+
+create or replace function public.activate_group_if_ready(p_group uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare
+  v_leader uuid;
+  v_members int;
+begin
+  select leader_id into v_leader from public.groups where id = p_group;
+  if not found then return false; end if;
+
+  select count(*) into v_members
+    from public.group_members
+    where group_id = p_group and user_id is distinct from v_leader;
+
+  if v_members < 2 then return false; end if;
+
+  update public.groups set active = true where id = p_group and not active;
+  update public.group_invites set status = 'expired'
+    where group_id = p_group and status = 'invited';
+  return true;
+end;
+$$;
+revoke all on function public.activate_group_if_ready(uuid) from public, anon, authenticated;
+
+create or replace function public.search_group_invitees(p_group uuid, p_query text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g public.groups;
+  v_q text;
+  v_exact public.profiles;
+  v_status text := 'ok';
+  v_profile jsonb := null;
+  v_suggestions jsonb;
+  v_slots int;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+
+  select * into g from public.groups where id = p_group;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if g.leader_id <> uid then return jsonb_build_object('status', 'not_leader'); end if;
+
+  update public.group_invites set status = 'expired'
+    where group_id = p_group and status = 'invited'
+      and expires_at is not null and expires_at <= now();
+
+  select count(*) into v_slots
+    from public.group_invites where group_id = p_group and status = 'invited';
+
+  v_q := lower(btrim(coalesce(p_query, '')));
+  v_q := regexp_replace(v_q, '^@+', '');
+
+  select * into v_exact from public.profiles
+    where lower(username) = v_q limit 1;
+
+  if found then
+    if v_exact.id = uid then
+      v_status := 'self';
+    elsif v_exact.interest is distinct from g.interest then
+      v_status := 'wrong_interest';
+    elsif exists (
+      select 1 from public.group_members where group_id = p_group and user_id = v_exact.id
+    ) then
+      v_status := 'member';
+    elsif exists (
+      select 1 from public.group_invites
+      where group_id = p_group and invitee_id = v_exact.id and status = 'invited'
+    ) then
+      v_status := 'already_invited';
+    elsif g.active then
+      v_status := 'group_active';
+    elsif v_slots >= 2 then
+      v_status := 'full';
+    end if;
+
+    v_profile := jsonb_build_object(
+      'id', v_exact.id,
+      'username', v_exact.username,
+      'display_name', v_exact.display_name,
+      'avatar_url', v_exact.avatar_url,
+      'interest', v_exact.interest
+    );
+  elsif v_q <> '' then
+    v_status := 'not_found';
+  end if;
+
+  select coalesce(jsonb_agg(row_to_json(s)::jsonb), '[]'::jsonb)
+    into v_suggestions
+  from (
+    select p.username, p.display_name, p.avatar_url,
+      exists (
+        select 1 from public.group_invites i
+        where i.group_id = p_group and i.invitee_id = p.id and i.status = 'invited'
+      ) as invited
+    from public.profiles p
+    where v_q <> ''
+      and lower(p.username) like v_q || '%'
+      and p.interest = g.interest
+      and p.id <> uid
+      and not exists (
+        select 1 from public.group_members m
+        where m.group_id = p_group and m.user_id = p.id
+      )
+    order by lower(p.username)
+    limit 6
+  ) s;
+
+  return jsonb_build_object(
+    'status', v_status,
+    'query', v_q,
+    'profile', v_profile,
+    'suggestions', v_suggestions,
+    'slots_left', greatest(0, 2 - v_slots),
+    'active', g.active,
+    'interest', g.interest
+  );
+end;
+$$;
+revoke all on function public.search_group_invitees(uuid, text) from public, anon;
+grant execute on function public.search_group_invitees(uuid, text) to authenticated;
+
+create or replace function public.invite_group_member(p_group uuid, p_username text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  g public.groups;
+  p public.profiles;
+  v_q text;
+  v_slots int;
+  v_invite uuid;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+
+  select * into g from public.groups where id = p_group for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if g.leader_id <> uid then return jsonb_build_object('status', 'not_leader'); end if;
+  if g.active then return jsonb_build_object('status', 'group_active'); end if;
+
+  v_q := lower(btrim(coalesce(p_username, '')));
+  v_q := regexp_replace(v_q, '^@+', '');
+  if v_q = '' then return jsonb_build_object('status', 'not_found'); end if;
+
+  select * into p from public.profiles where lower(username) = v_q limit 1;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if p.interest is distinct from g.interest then
+    return jsonb_build_object('status', 'wrong_interest', 'username', p.username);
+  end if;
+  if p.id = uid then return jsonb_build_object('status', 'self'); end if;
+  if exists (
+    select 1 from public.group_members where group_id = p_group and user_id = p.id
+  ) then return jsonb_build_object('status', 'member', 'username', p.username); end if;
+
+  update public.group_invites set status = 'expired'
+    where group_id = p_group and status = 'invited'
+      and expires_at is not null and expires_at <= now();
+
+  select count(*) into v_slots
+    from public.group_invites where group_id = p_group and status = 'invited';
+  if v_slots >= 2 then return jsonb_build_object('status', 'full'); end if;
+
+  if exists (
+    select 1 from public.group_invites
+    where group_id = p_group and invitee_id = p.id and status = 'invited'
+  ) then return jsonb_build_object('status', 'already_invited', 'username', p.username); end if;
+
+  begin
+    insert into public.group_invites (group_id, invitee_id, status, expires_at)
+    values (p_group, p.id, 'invited', now() + interval '72 hours')
+    returning id into v_invite;
+  exception when unique_violation then
+    return jsonb_build_object('status', 'already_invited', 'username', p.username);
+  end;
+
+  return jsonb_build_object(
+    'status', 'ok',
+    'invite_id', v_invite,
+    'username', p.username,
+    'slots_left', greatest(0, 1 - v_slots)
+  );
+end;
+$$;
+revoke all on function public.invite_group_member(uuid, text) from public, anon;
+grant execute on function public.invite_group_member(uuid, text) to authenticated;
+
+create or replace function public.accept_group_invite_by_id(p_invite uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  inv public.group_invites;
+  g public.groups;
+  p public.profiles;
+  v_active boolean := false;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+
+  select * into inv from public.group_invites where id = p_invite for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if inv.invitee_id is null or inv.invitee_id <> uid then
+    return jsonb_build_object('status', 'forbidden');
+  end if;
+
+  if inv.status = 'accepted' then return jsonb_build_object('status', 'already'); end if;
+  if inv.status = 'declined' then return jsonb_build_object('status', 'declined'); end if;
+  if inv.status = 'expired' then return jsonb_build_object('status', 'expired'); end if;
+  if inv.expires_at is not null and now() > inv.expires_at then
+    update public.group_invites set status = 'expired' where id = inv.id;
+    return jsonb_build_object('status', 'expired');
+  end if;
+
+  select * into g from public.groups where id = inv.group_id for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+
+  if g.active then
+    update public.group_invites set status = 'expired' where id = inv.id;
+    return jsonb_build_object('status', 'group_active');
+  end if;
+
+  if exists (
+    select 1 from public.group_members where group_id = g.id and user_id = uid
+  ) then
+    update public.group_invites
+      set status = 'accepted', accepted_by = uid, accepted_at = now(), responded_at = now()
+      where id = inv.id;
+    return jsonb_build_object('status', 'already_member', 'active', g.active);
+  end if;
+
+  select * into p from public.profiles where id = uid;
+  if not found then return jsonb_build_object('status', 'no_profile'); end if;
+  if p.interest is distinct from g.interest then
+    return jsonb_build_object('status', 'wrong_interest');
+  end if;
+
+  update public.group_invites
+    set status = 'accepted', accepted_by = uid, accepted_at = now(), responded_at = now()
+    where id = inv.id;
+  insert into public.group_members(group_id, user_id, role)
+    values (g.id, uid, 'member') on conflict do nothing;
+
+  v_active := public.activate_group_if_ready(g.id);
+  return jsonb_build_object('status', 'accepted', 'active', v_active);
+end;
+$$;
+revoke all on function public.accept_group_invite_by_id(uuid) from public, anon;
+grant execute on function public.accept_group_invite_by_id(uuid) to authenticated;
+
+create or replace function public.decline_group_invite(p_invite uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  inv public.group_invites;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+
+  select * into inv from public.group_invites where id = p_invite for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if inv.invitee_id is null or inv.invitee_id <> uid then
+    return jsonb_build_object('status', 'forbidden');
+  end if;
+
+  if inv.status = 'invited'
+     and (inv.expires_at is null or now() <= inv.expires_at) then
+    update public.group_invites
+      set status = 'declined', responded_at = now()
+      where id = inv.id;
+    return jsonb_build_object('status', 'declined');
+  end if;
+
+  if inv.status = 'invited'
+     and inv.expires_at is not null and now() > inv.expires_at then
+    update public.group_invites set status = 'expired' where id = inv.id;
+    return jsonb_build_object('status', 'expired');
+  end if;
+
+  return jsonb_build_object('status', inv.status);
+end;
+$$;
+revoke all on function public.decline_group_invite(uuid) from public, anon;
+grant execute on function public.decline_group_invite(uuid) to authenticated;
+
+-- legacy token invites keep working, but a direct invite can only be used by its invitee
+create or replace function public.accept_group_invite(p_token text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  inv public.group_invites;
+  uid uuid := auth.uid();
+  g public.groups;
+  v_active boolean;
+begin
+  if uid is null then return jsonb_build_object('status', 'auth_required'); end if;
+  select * into inv from public.group_invites where token = p_token for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if inv.invitee_id is not null and inv.invitee_id <> uid then
+    return jsonb_build_object('status', 'invitee_only');
+  end if;
+  if inv.status <> 'invited' then
+    return jsonb_build_object(
+      'status',
+      case when inv.status = 'accepted' then 'already' else inv.status end
+    );
+  end if;
+  if inv.expires_at is not null and now() > inv.expires_at then
+    update public.group_invites set status = 'expired' where id = inv.id;
+    return jsonb_build_object('status', 'expired');
+  end if;
+
+  select * into g from public.groups where id = inv.group_id for update;
+  if not found then return jsonb_build_object('status', 'not_found'); end if;
+  if g.leader_id = uid then
+    return jsonb_build_object('status', 'leader_cannot_accept');
+  end if;
+  if g.active then return jsonb_build_object('status', 'group_active'); end if;
+  if exists (
+    select 1 from public.group_members where group_id = g.id and user_id = uid
+  ) then return jsonb_build_object('status', 'already_member'); end if;
+
+  update public.group_invites
+    set status = 'accepted', accepted_by = uid, accepted_at = now(), responded_at = now()
+    where id = inv.id;
+  insert into public.group_members(group_id, user_id, role)
+    values (g.id, uid, 'member') on conflict do nothing;
+
+  v_active := public.activate_group_if_ready(g.id);
+  return jsonb_build_object('status', 'accepted', 'active', v_active);
+end;
+$$;
+
+-- membership now only enters through definer RPCs or self-service leadership
+drop policy if exists "members leader insert" on public.group_members;
+drop policy if exists "members self insert" on public.group_members;
+drop policy if exists "members leader bootstrap" on public.group_members;
+create policy "members leader bootstrap" on public.group_members for insert to authenticated
+  with check (
+    (select auth.uid()) = user_id
+    and role = 'leader'
+    and exists (
+      select 1 from public.groups g
+      where g.id = group_members.group_id
+        and g.leader_id = (select auth.uid())
+    )
+  );
+
+-- 16c) inbox activity for direct invites
+create or replace function public.notify_group_invite_created()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+  v_name text;
+begin
+  if new.invitee_id is null or new.status <> 'invited' then return new; end if;
+  select * into g from public.groups where id = new.group_id;
+  if not found then return new; end if;
+  select coalesce(nullif(btrim(display_name), ''), 'The group leader') into v_name
+    from public.profiles where id = g.leader_id;
+
+  perform public.push_notification(
+    new.invitee_id, g.leader_id, 'group_invite', g.id, 'group_invite', new.id,
+    '/groups/' || g.slug, 'Group invite',
+    coalesce(v_name, 'The group leader') || ' invited you to ' || g.name || '.',
+    'group_invite:' || new.id || ':created'
+  );
+  return new;
+end;
+$$;
+drop trigger if exists notify_group_invite_created on public.group_invites;
+create trigger notify_group_invite_created after insert on public.group_invites
+  for each row execute function public.notify_group_invite_created();
+
+create or replace function public.notify_group_invite_response()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  g public.groups;
+  v_name text;
+  v_kind text;
+  v_title text;
+  v_body text;
+begin
+  if new.invitee_id is null or old.status = new.status then return new; end if;
+  if new.status not in ('accepted', 'declined') then return new; end if;
+
+  select * into g from public.groups where id = new.group_id;
+  if not found then return new; end if;
+  select coalesce(nullif(btrim(display_name), ''), 'A member') into v_name
+    from public.profiles where id = new.invitee_id;
+
+  if new.status = 'accepted' then
+    v_kind := 'group_invite_accepted';
+    v_title := 'Invite accepted';
+    v_body := v_name || ' joined ' || g.name || '.';
+  else
+    v_kind := 'group_invite_declined';
+    v_title := 'Invite declined';
+    v_body := v_name || ' declined your invite to ' || g.name || '.';
+  end if;
+
+  perform public.push_notification(
+    g.leader_id, new.invitee_id, v_kind, g.id, 'group_invite', new.id,
+    '/groups/' || g.slug, v_title, v_body,
+    'group_invite:' || new.id || ':' || new.status
+  );
+  return new;
+end;
+$$;
+drop trigger if exists notify_group_invite_response on public.group_invites;
+create trigger notify_group_invite_response after update on public.group_invites
+  for each row execute function public.notify_group_invite_response();
 
 notify pgrst, 'reload schema';

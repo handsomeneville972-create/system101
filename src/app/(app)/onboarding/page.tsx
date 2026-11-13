@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
-import { INTERESTS } from "@/lib/domain";
-import { completeOnboarding } from "@/lib/actions/auth";
+import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
 import { getUser } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabase-server";
-import { SubmitButton } from "@/components/ui/submit-button";
 
 export const instant = false;
 
@@ -14,7 +12,7 @@ export default async function Onboarding() {
   const sb = await supabaseServer();
   const { data: profile } = await sb
     .from("profiles")
-    .select("display_name, interest, goals")
+    .select("display_name, username, interest, goals")
     .eq("id", user.id)
     .maybeSingle();
   if (profile?.interest) redirect("/home");
@@ -22,44 +20,10 @@ export default async function Onboarding() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Onboarding</h1>
-      <p className="mt-1 text-sm text-zinc-400">Pick an interest. Tell goals.</p>
-      <form action={completeOnboarding} className="card mt-6 space-y-4 p-6">
-        <input
-          name="display_name"
-          required
-          defaultValue={profile?.display_name ?? ""}
-          placeholder="Display name"
-          className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
-        />
-        <select
-          name="interest"
-          required
-          defaultValue={profile?.interest ?? ""}
-          className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
-        >
-          <option value="" disabled>
-            Pick an interest
-          </option>
-          {INTERESTS.map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <textarea
-          name="goals"
-          defaultValue={profile?.goals ?? ""}
-          placeholder="Goals (1 line)"
-          rows={2}
-          className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
-        />
-        <SubmitButton
-          pendingText="Saving…"
-          className="btn-pill bg-white px-6 py-2.5 text-sm font-medium text-black"
-        >
-          Continue
-        </SubmitButton>
-      </form>
+      <p className="mt-1 text-sm text-zinc-400">
+        Pick a username and interest. Tell goals.
+      </p>
+      <OnboardingForm profile={profile} />
     </div>
   );
 }

@@ -14,6 +14,7 @@ export type ProfileGroup = {
 export type PublicProfile = {
   id: string;
   display_name: string | null;
+  username: string;
   avatar_path: string | null;
   avatar_url: string | null;
   interest: string | null;
@@ -47,7 +48,7 @@ export async function profileById(id: string): Promise<PublicProfile | null> {
   const sb = await supabaseServer();
   const { data } = await sb
     .from("profiles")
-    .select("id, display_name, avatar_url, interest, bio, goals, created_at")
+    .select("id, display_name, username, avatar_url, interest, bio, goals, created_at")
     .eq("id", id)
     .maybeSingle();
   if (!data) return null;
@@ -72,6 +73,7 @@ export async function profileById(id: string): Promise<PublicProfile | null> {
   return {
     id: data.id as string,
     display_name: (data.display_name as string | null) ?? null,
+    username: (data.username as string | null) ?? "",
     avatar_path: (data.avatar_url as string | null) ?? null,
     avatar_url: avatarUrl,
     interest,

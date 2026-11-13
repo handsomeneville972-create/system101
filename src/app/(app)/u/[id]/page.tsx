@@ -42,6 +42,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold">{profile.display_name ?? "Member"}</h1>
+          {profile.username && (
+            <p className="mt-0.5 text-sm text-zinc-500">@{profile.username}</p>
+          )}
           <p className="mt-1 text-sm text-zinc-400">
             {profile.interest_label ?? "No interest set"}
           </p>

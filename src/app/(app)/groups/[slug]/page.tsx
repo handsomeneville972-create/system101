@@ -10,6 +10,8 @@ import { interestLabel } from "@/lib/domain";
 import { JoinRequestForm } from "@/components/groups/JoinRequestForm";
 import { VotePanel } from "@/components/groups/VotePanel";
 import { InviteLinks } from "@/components/groups/InviteLinks";
+import { UsernameInvites } from "@/components/groups/UsernameInvites";
+import { InviteResponse } from "@/components/groups/InviteResponse";
 import { GroupSettings } from "@/components/groups/GroupSettings";
 import { GroupMembers } from "@/components/groups/GroupMembers";
 import { LeaveGroup } from "@/components/groups/LeaveGroup";
@@ -87,17 +89,6 @@ export default async function GroupPage({
         {memberCount === 1 ? "member" : "members"} · Enter with reason. Members vote 80% in 48h.
       </p>
 
-      {created && group.isLeader && (
-        <div className="card mt-6 p-6">
-          <p className="text-sm text-zinc-300">
-            Group created. Share these invites — 2 members joining activates the group.
-          </p>
-          <div className="mt-4">
-            <InviteLinks invites={group.invites} groupId={group.id} slug={group.slug} />
-          </div>
-        </div>
-      )}
-
       {group.rules && (
         <div className="card mt-6 p-6">
           <h2 className="text-sm font-medium">Rules</h2>
@@ -107,13 +98,31 @@ export default async function GroupPage({
 
       {group.isMember ? (
         <div className="mt-6 space-y-6">
-          {group.isLeader && !created && (
-            <div className="card p-6">
-              <h2 className="text-sm font-medium">Invites</h2>
+          {group.isLeader && !group.active && (
+            <UsernameInvites
+              groupId={group.id}
+              slug={group.slug}
+              interest={group.interest}
+              invitees={group.invitees}
+              justCreated={created === "1"}
+            />
+          )}
+          {group.isLeader && group.invites.length > 0 && (
+            <details className="card p-6">
+              <summary className="cursor-pointer text-sm font-medium">
+                Legacy invite links
+              </summary>
+              <p className="mt-2 text-xs text-zinc-500">
+                Older email invites still work until they expire.
+              </p>
               <div className="mt-3">
-                <InviteLinks invites={group.invites} groupId={group.id} slug={group.slug} />
+                <InviteLinks
+                  invites={group.invites}
+                  groupId={group.id}
+                  slug={group.slug}
+                />
               </div>
-            </div>
+            </details>
           )}
           {group.isLeader && (
             <div className="card p-6">
@@ -167,6 +176,12 @@ export default async function GroupPage({
             )}
           </div>
         </div>
+      ) : group.myInvite ? (
+        <InviteResponse
+          inviteId={group.myInvite.id}
+          slug={group.slug}
+          groupName={group.name}
+        />
       ) : group.pendingRequest ? (
         <div className="card mt-6 p-6 text-sm text-zinc-300">
           Your request is pending. Members vote. 80% yes within 48h.

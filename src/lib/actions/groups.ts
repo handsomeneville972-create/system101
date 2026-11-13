@@ -33,9 +33,6 @@ export async function createGroup(_prev: FormState, formData: FormData): Promise
   const name = String(formData.get("name") ?? "").trim();
   const interest = String(formData.get("interest") ?? "").trim();
   const rules = String(formData.get("rules") ?? "").trim();
-  const inviteEmails = [formData.get("invite1"), formData.get("invite2")]
-    .map((v) => String(v ?? "").trim())
-    .filter(Boolean);
 
   if (!name || !interest) return { error: "Name and interest are required." };
   if (!INTERESTS.some((p) => p.slug === interest)) return { error: "Pick a valid interest." };
@@ -52,12 +49,6 @@ export async function createGroup(_prev: FormState, formData: FormData): Promise
   if (error) return { error: error.message };
 
   await sb.from("group_members").insert({ group_id: group.id, user_id: user.id, role: "leader" });
-
-  const rows: { group_id: string; email: string | null }[] = inviteEmails
-    .slice(0, 2)
-    .map((email) => ({ group_id: group.id, email }));
-  while (rows.length < 2) rows.push({ group_id: group.id, email: null });
-  await sb.from("group_invites").insert(rows);
 
   updateTag(TAGS.groups);
   revalidatePath("/findem");
@@ -172,6 +163,196 @@ export async function acceptInvite(formData: FormData) {
   }
   if (result?.status === "leader_cannot_accept") redirect(slug ? `/groups/${slug}` : "/home");
   redirect(`/groups/join?token=${token}&error=1`);
+}
+
+export type InviteLookup = {
+  status: string;
+  query?: string;
+  profile?: {
+    id: string;
+    username: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    interest: string | null;
+  } | null;
+  suggestions?: {
+    username: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    invited: boolean;
+  }[];
+  slots_left?: number;
+  active?: boolean;
+  interest?: string;
+  error?: string;
+};
+
+export async function lookupGroupInvitees(
+  groupId: string,
+  query: string
+): Promise<InviteLookup> {
+  const user = await getUser();
+  if (!user) return { status: "auth_required" };
+
+  const limited = await actionRateLimit("groups.invite.search", user.id, {
+    limit: 240,
+    windowMs: 60_000,
+  });
+  if (limited) return { status: "rate_limited", error: limited };
+
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("search_group_invitees", {
+    p_group: groupId,
+    p_query: query,
+  });
+  if (error) return { status: "error", error: error.message };
+  return (data ?? { status: "error" }) as InviteLookup;
+}
+
+export type InviteState = FormState & { message?: string };
+
+function inviteErrorMessage(status: string | undefined) {
+  switch (status) {
+    case "not_found":
+      return "No member with that username.";
+    case "wrong_interest":
+      return "That username is in another interest.";
+    case "self":
+      return "That's your username.";
+    case "member":
+      return "That person is already a member.";
+    case "already_invited":
+      return "That person is already invited.";
+    case "full":
+      return "Both invite slots are used.";
+    case "group_active":
+      return "This group is already active. Use join requests.";
+    case "not_leader":
+      return "Leader only.";
+    default:
+      return "Could not send invite.";
+  }
+}
+
+export async function sendGroupInvite(
+  _prev: InviteState,
+  formData: FormData
+): Promise<InviteState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.invite.send", user.id, {
+    limit: 60,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
+
+  const groupId = String(formData.get("group_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const username = String(formData.get("username") ?? "").trim();
+  if (!groupId || !username) return { error: "Type a username first." };
+
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("invite_group_member", {
+    p_group: groupId,
+    p_username: username,
+  });
+  if (error) return { error: error.message };
+
+  const result = (data ?? {}) as { status?: string; username?: string };
+  if (result.status !== "ok") {
+    return { error: inviteErrorMessage(result.status) };
+  }
+
+  revalidatePath(`/groups/${slug}`);
+  return {
+    ok: true,
+    message: `Invite sent to @${result.username ?? username.replace(/^@+/, "")}.`,
+  };
+}
+
+export async function acceptDirectInvite(
+  _prev: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.invite.accept", user.id, {
+    limit: 30,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
+
+  const inviteId = String(formData.get("invite_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  if (!inviteId) return { error: "Missing invite." };
+
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("accept_group_invite_by_id", {
+    p_invite: inviteId,
+  });
+  if (error) return { error: error.message };
+
+  const result = (data ?? {}) as { status?: string };
+  if (
+    result.status === "accepted" ||
+    result.status === "already_member" ||
+    result.status === "already"
+  ) {
+    updateTag(TAGS.groups);
+    revalidatePath(`/groups/${slug}`);
+    revalidatePath("/home");
+    redirect(`/groups/${slug}`);
+  }
+
+  if (result.status === "wrong_interest") {
+    return { error: "Your interest changed. Ask the leader to invite you again." };
+  }
+  if (result.status === "expired") {
+    revalidatePath(`/groups/${slug}`);
+    return { error: "This invite has expired." };
+  }
+  if (result.status === "group_active") {
+    return { error: "This group is already active. Request to join instead." };
+  }
+  if (result.status === "forbidden") return { error: "This invite is not yours." };
+  if (result.status === "declined") return { error: "You already declined this invite." };
+  if (result.status === "not_found") return { error: "Invite not found." };
+  return { error: "Could not accept invite." };
+}
+
+export async function declineDirectInvite(
+  _prev: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in." };
+  const limited = await actionRateLimit("groups.invite.decline", user.id, {
+    limit: 30,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
+
+  const inviteId = String(formData.get("invite_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  if (!inviteId) return { error: "Missing invite." };
+
+  const sb = await supabaseServer();
+  const { data, error } = await sb.rpc("decline_group_invite", {
+    p_invite: inviteId,
+  });
+  if (error) return { error: error.message };
+
+  const result = (data ?? {}) as { status?: string };
+  if (
+    result.status === "declined" ||
+    result.status === "expired" ||
+    result.status === "accepted"
+  ) {
+    revalidatePath(`/groups/${slug}`);
+    return { ok: true };
+  }
+  if (result.status === "forbidden") return { error: "This invite is not yours." };
+  return { error: "Could not decline invite." };
 }
 
 export async function regenerateInvite(_prev: FormState, formData: FormData): Promise<FormState> {

@@ -64,7 +64,12 @@ export type GroupDetail = {
   rules: string | null;
   active: boolean;
   leader_id: string | null;
-  members: { user_id: string; role: string; display_name: string | null }[];
+  members: {
+    user_id: string;
+    role: string;
+    display_name: string | null;
+    username: string | null;
+  }[];
   invites: {
     id: string;
     token: string;
@@ -72,6 +77,15 @@ export type GroupDetail = {
     status: string;
     expires_at: string | null;
   }[];
+  invitees: {
+    id: string;
+    username: string;
+    display_name: string | null;
+    status: string;
+    expires_at: string | null;
+    responded_at: string | null;
+  }[];
+  myInvite: { id: string; expires_at: string | null } | null;
   isMember: boolean;
   isLeader: boolean;
   pendingRequest: { id: string; reason: string } | null;
@@ -108,7 +122,7 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
   const [membersResult, settleResult] = await Promise.all([
     sb
       .from("group_members")
-      .select("user_id, role, profiles(display_name)")
+      .select("user_id, role, profiles(display_name, username)")
       .eq("group_id", group.id),
     user ? sb.rpc("settle_due_join_requests", { p_group: group.id }) : Promise.resolve(null),
   ]);
@@ -119,18 +133,22 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
       ? (
           await sb
             .from("group_members")
-            .select("user_id, role, profiles(display_name)")
+            .select("user_id, role, profiles(display_name, username)")
             .eq("group_id", group.id)
         ).data
       : membersResult.data;
 
   const memberList = (members ?? []).map((m: Record<string, unknown>) => {
-    const p = m.profiles as { display_name: string | null } | { display_name: string | null }[] | null;
+    const p = m.profiles as
+      | { display_name: string | null; username: string | null }
+      | { display_name: string | null; username: string | null }[]
+      | null;
     const prof = Array.isArray(p) ? p[0] : p;
     return {
       user_id: m.user_id as string,
       role: m.role as string,
       display_name: prof?.display_name ?? null,
+      username: prof?.username ?? null,
     };
   });
 
@@ -143,8 +161,56 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
       .from("group_invites")
       .select("id, token, email, status, expires_at")
       .eq("group_id", group.id)
+      .is("invitee_id", null)
       .order("created_at");
     return (data ?? []) as GroupDetail["invites"];
+  };
+
+  const loadInvitees = async (): Promise<GroupDetail["invitees"]> => {
+    if (!isLeader) return [];
+    const { data } = await sb
+      .from("group_invites")
+      .select(
+        "id, status, expires_at, responded_at, created_at, profiles!group_invites_invitee_id_fkey(username, display_name)"
+      )
+      .eq("group_id", group.id)
+      .not("invitee_id", "is", null)
+      .order("created_at", { ascending: false });
+
+    return (data ?? []).map((row: Record<string, unknown>) => {
+      const p = row.profiles as
+        | { username: string | null; display_name: string | null }
+        | { username: string | null; display_name: string | null }[]
+        | null;
+      const prof = Array.isArray(p) ? p[0] : p;
+      return {
+        id: row.id as string,
+        username: prof?.username ?? "member",
+        display_name: prof?.display_name ?? null,
+        status: row.status as string,
+        expires_at: (row.expires_at as string | null) ?? null,
+        responded_at: (row.responded_at as string | null) ?? null,
+      };
+    });
+  };
+
+  const loadMyInvite = async (): Promise<GroupDetail["myInvite"]> => {
+    if (!user || isMember) return null;
+    const { data } = await sb
+      .from("group_invites")
+      .select("id, expires_at, status")
+      .eq("group_id", group.id)
+      .eq("invitee_id", user.id)
+      .eq("status", "invited")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    if (data.expires_at && new Date(data.expires_at) <= new Date()) return null;
+    return {
+      id: data.id as string,
+      expires_at: (data.expires_at as string | null) ?? null,
+    };
   };
 
   const loadOpenRequests = async (): Promise<GroupDetail["openRequests"]> => {
@@ -219,17 +285,21 @@ export async function groupBySlug(slug: string): Promise<GroupDetail | null> {
 
   // These reads are independent of one another. Settling due suggies only
   // changes signal state, so it can run alongside the member-facing reads.
-  const [invites, openRequests, ownRequests] = await Promise.all([
+  const [invites, openRequests, ownRequests, invitees, myInvite] = await Promise.all([
     loadInvites(),
     loadOpenRequests(),
     loadOwnRequests(),
+    loadInvitees(),
+    loadMyInvite(),
     isMember ? sb.rpc("settle_due_suggies", { p_group: group.id }) : Promise.resolve(null),
   ]);
 
   return {
-    ...(group as Omit<GroupDetail, "members" | "invites" | "isMember" | "isLeader" | "pendingRequest" | "lastDenied" | "openRequests">),
+    ...(group as Omit<GroupDetail, "members" | "invites" | "invitees" | "myInvite" | "isMember" | "isLeader" | "pendingRequest" | "lastDenied" | "openRequests">),
     members: memberList,
     invites,
+    invitees,
+    myInvite,
     isMember,
     isLeader,
     pendingRequest: ownRequests.pendingRequest,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AvatarUploader } from "@/components/profile/AvatarUploader";
 import { SettingsForm } from "@/components/settings/SettingsForm";
+import { UsernameForm } from "@/components/settings/UsernameForm";
 import { getProfile } from "@/lib/auth";
 import { signedAvatar } from "@/lib/data/profiles";
 
@@ -29,6 +30,7 @@ export default async function Settings() {
           <AvatarUploader currentUrl={avatarUrl} />
         </div>
       </div>
+      <UsernameForm profile={profile} />
       <div className="card mt-4 flex items-center justify-between gap-3 p-6">
         <div>
           <h2 className="text-sm font-medium">Payouts</h2>

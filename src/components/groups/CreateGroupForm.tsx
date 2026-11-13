@@ -44,24 +44,15 @@ export function CreateGroupForm({ defaultInterest = "" }: { defaultInterest?: st
           </option>
         ))}
       </select>
-      <input
-        name="invite1"
-        type="email"
-        placeholder="Invite email 1 (optional)"
-        className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
-      />
-      <input
-        name="invite2"
-        type="email"
-        placeholder="Invite email 2 (optional)"
-        className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
-      />
       <textarea
         name="rules"
         placeholder="Rules"
         rows={3}
         className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
       />
+      <p className="text-xs text-zinc-500">
+        Next, invite members by username. Two accepts activate the group.
+      </p>
       {state.error && <p className="text-xs text-red-400">{state.error}</p>}
       <Submit />
     </form>
