@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { LoadingRegion, Skeleton, SkeletonCircle } from "@/components/ui/skeleton";
+import { LoadingRegion, Skeleton, SkeletonCircle, SkeletonOctagon } from "@/components/ui/skeleton";
 import {
   FormCardSkeleton,
   ListCardSkeleton,
@@ -123,7 +123,7 @@ export function SettingsPageSkeleton() {
       <div className="card mt-6 p-6" aria-hidden="true">
         <Skeleton className="h-4 w-16" />
         <div className="mt-4 flex items-center gap-4">
-          <SkeletonCircle className="h-16 w-16" />
+          <SkeletonOctagon className="h-16 w-16" />
           <Skeleton className="h-9 w-32 rounded-full" />
         </div>
       </div>
@@ -167,15 +167,21 @@ export function TablePageSkeleton({
 export function ListRowsSkeleton({
   rows = 4,
   className,
+  avatarShape = "circle",
 }: {
   rows?: number;
   className?: string;
+  avatarShape?: "circle" | "octagon";
 }) {
   return (
     <div className={cn("card mt-4 overflow-hidden", className)} aria-hidden="true">
       {Array.from({ length: rows }).map((_, index) => (
         <div key={index} className="flex items-start gap-3 border-b hairline p-4 last:border-0">
-          <Skeleton className="mt-0.5 h-8 w-8 shrink-0 rounded-full" />
+          {avatarShape === "octagon" ? (
+            <SkeletonOctagon className="mt-0.5 h-8 w-8 shrink-0" />
+          ) : (
+            <SkeletonCircle className="mt-0.5 h-8 w-8 shrink-0" />
+          )}
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-4 w-1/3" />
             <Skeleton className="h-3 w-4/5" />

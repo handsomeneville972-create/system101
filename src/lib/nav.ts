@@ -1,13 +1,10 @@
 import {
   BarChart3,
   BookOpen,
-  BookUp,
-  FileUp,
   GraduationCap,
   House,
   LayoutGrid,
   Lightbulb,
-  Plus,
   UsersRound,
   Wallet,
   type LucideIcon,
@@ -37,12 +34,6 @@ export const NAV_LINKS: NavItem[] = [
 export const WORK_NAV: NavItem[] = [
   { href: "/dashboard/apps", label: "My apps", icon: BarChart3 },
   { href: "/dashboard/earnings", label: "Earnings", icon: Wallet },
-];
-
-export const CONTRIBUTE_NAV: NavItem[] = [
-  { href: "/groups/new", label: "Create a group", icon: Plus },
-  { href: "/ebooku/upload", label: "Upload a book", icon: BookUp },
-  { href: "/decourse/upload", label: "Upload a course", icon: FileUp },
 ];
 
 export const SITE = {

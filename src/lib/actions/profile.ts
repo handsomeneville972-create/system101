@@ -88,6 +88,7 @@ export async function setAvatar(formData: FormData): Promise<FormState> {
   }
 
   revalidatePath("/settings");
+  revalidatePath("/", "layout");
   revalidatePath(`/u/${user.id}`);
   return { ok: true };
 }
@@ -112,6 +113,7 @@ export async function removeAvatar(): Promise<FormState> {
   }
 
   revalidatePath("/settings");
+  revalidatePath("/", "layout");
   revalidatePath(`/u/${user.id}`);
   return { ok: true };
 }

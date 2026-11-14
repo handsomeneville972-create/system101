@@ -10,13 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { ArrowUpRight, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
-import {
-  CONTRIBUTE_NAV,
-  NAV_LINKS,
-  SITE,
-  WORK_NAV,
-  type NavItem,
-} from "@/lib/nav";
+import { NAV_LINKS, SITE, WORK_NAV, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 import { useSidebar } from "@/components/shell/sidebar-context";
 
@@ -300,13 +294,6 @@ export function AppSidebar({
               divider
               messages={messages}
               inbox={inbox}
-            />
-            <SidebarSection
-              title="Contribute"
-              links={CONTRIBUTE_NAV}
-              pathname={pathname}
-              collapsed={collapsed}
-              divider
             />
           </nav>
 

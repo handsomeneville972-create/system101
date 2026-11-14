@@ -133,7 +133,10 @@ export function Avatar({
         } satisfies CSSProperties)
       : undefined;
 
-  const label = ariaLabel ?? name ?? alt ?? "Profile photo";
+  const baseLabel = ariaLabel ?? (name?.trim() ? name : alt) ?? "Profile photo";
+  const label = [baseLabel, status ? STATUS_LABEL[status] : null, verified ? "Verified" : null]
+    .filter(Boolean)
+    .join(", ");
   const fallbackContent = fallback ?? (
     name?.trim() ? (
       chatInitials(name)
@@ -143,13 +146,11 @@ export function Avatar({
   );
 
   const wrapperClassName = cn(
-    "avatar-octagon-trigger group/avatar relative inline-flex aspect-square shrink-0 isolate align-middle",
+    "avatar-octagon-trigger relative inline-flex aspect-square shrink-0 isolate align-middle",
     typeof size === "number" ? "" : SIZES[size],
-    interactive &&
-      "cursor-pointer focus-visible:outline-none",
+    interactive && "cursor-pointer focus-visible:outline-none",
     className
   );
-  const wrapperStyle = dimension;
 
   const content = (
     <>
@@ -231,7 +232,7 @@ export function Avatar({
         title={title}
         onClick={onClick}
         className={wrapperClassName}
-        style={wrapperStyle}
+        style={dimension}
       >
         {content}
       </Link>
@@ -246,7 +247,7 @@ export function Avatar({
         title={title}
         onClick={onClick}
         className={cn(wrapperClassName, "border-0 bg-transparent p-0")}
-        style={wrapperStyle}
+        style={dimension}
       >
         {content}
       </button>
@@ -254,7 +255,7 @@ export function Avatar({
   }
 
   return (
-    <span className={wrapperClassName} style={wrapperStyle} title={title}>
+    <span className={wrapperClassName} style={dimension} title={title}>
       {content}
     </span>
   );

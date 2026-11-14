@@ -9,6 +9,10 @@ export function SkeletonCircle({ className }: { className?: string }) {
   return <Skeleton className={cn("rounded-full", className)} />;
 }
 
+export function SkeletonOctagon({ className }: { className?: string }) {
+  return <Skeleton className={cn("avatar-octagon-clip", className)} />;
+}
+
 export function SkeletonStatus({ label = "Loading…" }: { label?: string }) {
   return (
     <span role="status" aria-live="polite" className="sr-only">

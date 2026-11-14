@@ -38,7 +38,7 @@ import {
   syncChatMessages,
 } from "@/lib/actions/messages";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { ChatAvatar } from "@/components/messages/ChatAvatar";
+import { Avatar } from "@/components/ui/avatar";
 
 type MessageRow = {
   id: string;
@@ -539,7 +539,7 @@ export function ChatRoom({
         >
           <ArrowLeft className="h-5 w-5" aria-hidden />
         </Link>
-        <ChatAvatar name={group.name} url={null} className="h-8 w-8 text-[10px]" />
+        <Avatar name={group.name} size="sm" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-medium">{group.name}</h1>
           <p className="truncate text-[11px] text-zinc-500">
@@ -818,10 +818,11 @@ function MessageBubble({
       <div className={cn("flex gap-2", mine ? "justify-end" : "justify-start")}>
         {!mine &&
           (showMeta ? (
-            <ChatAvatar
+            <Avatar
               name={message.senderName}
-              url={message.senderAvatarUrl}
-              className="mt-0.5 h-7 w-7 text-[9px]"
+              src={message.senderAvatarUrl}
+              size="xs"
+              className="mt-0.5"
             />
           ) : (
             <span className="w-7 shrink-0" aria-hidden />

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { LogIn, LogOut, Settings, UserPlus } from "lucide-react";
 import { getProfile, getUser } from "@/lib/auth";
+import { signedAvatar } from "@/lib/data/profiles";
+import { Avatar } from "@/components/ui/avatar";
 import { SignOutButton } from "@/components/SignOutButton";
 
 const ROW =
@@ -28,13 +30,12 @@ export async function SidebarAccount() {
 
   const profile = await getProfile();
   const name = profile?.display_name ?? user.email?.split("@")[0] ?? "You";
+  const avatarUrl = await signedAvatar(profile?.avatar_url ?? null);
 
   return (
     <div className="space-y-0.5">
       <Link href={`/u/${user.id}`} className={ROW} title={name}>
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-medium text-black">
-          {name.charAt(0).toUpperCase()}
-        </span>
+        <Avatar name={name} src={avatarUrl} alt="" size="xs" />
         <span className={LABEL}>{name}</span>
       </Link>
       <Link href="/settings" className={ROW} title="Settings">

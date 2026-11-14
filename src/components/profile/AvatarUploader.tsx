@@ -1,7 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ImageUp } from "lucide-react";
+import { FilePicker } from "@/components/ui/file-picker";
+import { Avatar } from "@/components/ui/avatar";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { prepareAvatarUpload, setAvatar, removeAvatar } from "@/lib/actions/profile";
 
@@ -14,6 +17,7 @@ const MIME: Record<string, string> = {
 };
 
 export function AvatarUploader({ currentUrl }: { currentUrl: string | null }) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -62,8 +66,8 @@ export function AvatarUploader({ currentUrl }: { currentUrl: string | null }) {
       }
       setOk(true);
       setFile(null);
-      setPreview(null);
       if (inputRef.current) inputRef.current.value = "";
+      router.refresh();
     } catch (err) {
       setError((err as Error).message || "Could not save photo.");
     } finally {
@@ -82,6 +86,7 @@ export function AvatarUploader({ currentUrl }: { currentUrl: string | null }) {
       setOk(true);
       pick(null);
       if (inputRef.current) inputRef.current.value = "";
+      router.refresh();
     }
     setBusy(false);
   }
@@ -90,29 +95,24 @@ export function AvatarUploader({ currentUrl }: { currentUrl: string | null }) {
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border hairline bg-white/5">
-        {shown ? (
-          <Image
-            src={shown}
-            alt="Avatar preview"
-            fill
-            unoptimized
-            sizes="80px"
-            className="object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs text-zinc-600">
-            No photo
-          </div>
-        )}
-      </div>
+      <Avatar
+        src={shown}
+        alt="Avatar preview"
+        loading="eager"
+        size={80}
+        fallback={<span className="px-1 text-center text-[10px] text-zinc-600">No photo</span>}
+      />
       <div className="flex-1 space-y-2">
-        <input
-          ref={inputRef}
-          type="file"
+        <FilePicker
+          name="avatar"
           accept="image/jpeg,image/png,image/webp"
-          onChange={(e) => pick(e.target.files?.[0] ?? null)}
-          className="w-full text-sm text-zinc-400"
+          icon={ImageUp}
+          label="Choose photo"
+          changeLabel="Change photo"
+          hint={`JPG, PNG or WebP · max ${MAX_MB}MB`}
+          fileName={file?.name ?? (preview || currentUrl ? "Current photo" : "")}
+          inputRef={inputRef}
+          onSelect={(files) => pick(files?.[0] ?? null)}
         />
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -136,7 +136,6 @@ export function AvatarUploader({ currentUrl }: { currentUrl: string | null }) {
         </div>
         {error && <p className="text-xs text-red-400">{error}</p>}
         {ok && <p className="text-xs text-zinc-400">Saved.</p>}
-        <p className="text-xs text-zinc-600">JPG, PNG or WebP. Max {MAX_MB}MB.</p>
       </div>
     </div>
   );

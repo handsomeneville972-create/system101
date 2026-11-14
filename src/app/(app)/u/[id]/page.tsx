@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, BookOpen, LayoutGrid, Users } from "lucide-react";
 import { EbookCard } from "@/components/ebooku/EbookCard";
+import { Avatar } from "@/components/ui/avatar";
 import { getUser } from "@/lib/auth";
 import { analyticsFor, ctr } from "@/lib/data/analytics";
 import { profileById } from "@/lib/data/profiles";
@@ -24,22 +25,13 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="flex items-start gap-5">
-        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full border hairline bg-white/5">
-          {profile.avatar_url ? (
-            <Image
-              src={profile.avatar_url}
-              alt={profile.display_name ?? "Member"}
-              fill
-              unoptimized
-              sizes="96px"
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-2xl text-zinc-500">
-              {(profile.display_name ?? "M").charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
+        <Avatar
+          name={profile.display_name}
+          src={profile.avatar_url}
+          alt={profile.display_name ?? "Member"}
+          loading="eager"
+          size="xl"
+        />
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold">{profile.display_name ?? "Member"}</h1>
           {profile.username && (

@@ -15,7 +15,7 @@ export default function MessagesLoading() {
         <Skeleton className="h-8 w-14 rounded-md" />
         <Skeleton className="h-8 w-20 rounded-md" />
       </div>
-      <ListRowsSkeleton rows={5} />
+      <ListRowsSkeleton rows={5} avatarShape="octagon" />
     </LoadingRegion>
   );
 }

@@ -6,7 +6,7 @@ import { getUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { chatListTime } from "@/lib/chat";
 import { myConversations, unreadMessageCount, type ConversationSummary } from "@/lib/data/messages";
-import { ChatAvatar } from "@/components/messages/ChatAvatar";
+import { Avatar } from "@/components/ui/avatar";
 
 export const instant = false;
 
@@ -132,11 +132,7 @@ export default async function MessagesPage({
                   unread && "bg-white/[0.015]"
                 )}
               >
-                <ChatAvatar
-                  name={conversation.name}
-                  url={null}
-                  className="h-10 w-10 text-xs"
-                />
+                <Avatar name={conversation.name} size="md" />
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
