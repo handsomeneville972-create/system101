@@ -40,6 +40,47 @@ body {
   border-radius: 9999px;
 }
 
+/* Profile avatars -------------------------------------------------------- */
+
+/* Regular octagon inscribed in a square. The 29.3% corner cut makes every
+   side — straight and diagonal — the same length at every avatar size. */
+.avatar-octagon-clip {
+  -webkit-clip-path: polygon(
+    29.3% 0%,
+    70.7% 0%,
+    100% 29.3%,
+    100% 70.7%,
+    70.7% 100%,
+    29.3% 100%,
+    0% 70.7%,
+    0% 29.3%
+  );
+  clip-path: polygon(
+    29.3% 0%,
+    70.7% 0%,
+    100% 29.3%,
+    100% 70.7%,
+    70.7% 100%,
+    29.3% 100%,
+    0% 70.7%,
+    0% 29.3%
+  );
+}
+
+/* Browsers without clip-path still get a soft, clipped-looking frame instead
+   of a hard square. */
+@supports not (clip-path: polygon(0% 0%, 100% 0%, 100% 100%)) {
+  .avatar-octagon-clip {
+    border-radius: 22%;
+  }
+}
+
+/* Keyboard focus draws a second octagon behind the avatar, so the indicator
+   follows the silhouette rather than the bounding box. */
+.avatar-octagon-trigger:focus-visible .avatar-octagon-halo {
+  opacity: 1;
+}
+
 /* Loading skeletons ------------------------------------------------------- */
 
 .ds-skeleton {

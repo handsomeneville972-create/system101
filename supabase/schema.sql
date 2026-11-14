@@ -997,6 +997,7 @@ create policy "reviews self update" on public.reviews for update to authenticate
 drop policy if exists "reviews self delete" on public.reviews;
 create policy "reviews self delete" on public.reviews for delete to authenticated
   using ((select auth.uid()) = user_id);
+grant delete on public.reviews to authenticated;
 
 -- signals and votes are immutable after creation; outcomes via settle_suggy
 drop policy if exists "suggies leader insert" on public.suggies;

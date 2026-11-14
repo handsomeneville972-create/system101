@@ -34,6 +34,7 @@ export type EbookReview = {
 export type EbookDetail = EbookListItem & {
   author_bio: string | null;
   uploader_id: string | null;
+  file_path: string | null;
   owned: boolean;
   is_uploader: boolean;
   reviews: EbookReview[];
@@ -116,7 +117,7 @@ export async function ebookDetail(id: string): Promise<EbookDetail | null> {
   const { data } = await sb
     .from("ebooks")
     .select(
-      "id,title,description,author_bio,price_cents,currency,tags,cover_path,uploader_id,status,created_at,profiles(display_name),reviews(id,rating,body,verified_purchase,created_at,user_id,profiles(display_name))"
+      "id,title,description,author_bio,price_cents,currency,tags,cover_path,file_path,uploader_id,status,created_at,profiles(display_name),reviews(id,rating,body,verified_purchase,created_at,user_id,profiles(display_name))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -168,6 +169,7 @@ export async function ebookDetail(id: string): Promise<EbookDetail | null> {
     rating_avg: avg,
     rating_count: count,
     uploader_id: (row.uploader_id as string | null) ?? null,
+    file_path: (row.file_path as string | null) ?? null,
     owned,
     is_uploader: isUploader,
     reviews,

@@ -26,6 +26,7 @@ const COVER_EXT: Record<string, string> = {
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_COVER_BYTES = 2 * 1024 * 1024;
+const MAX_REVIEW_BODY = 2000;
 
 function extOf(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "";
@@ -173,6 +174,9 @@ export async function createReview(prev: FormState, formData: FormData): Promise
 
   if (!ebookId) return { error: "Missing book." };
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) return { error: "Rating must be 1–5." };
+  if (body.length > MAX_REVIEW_BODY) {
+    return { error: `Review must be ${MAX_REVIEW_BODY} characters or fewer.` };
+  }
 
   const sb = await supabaseServer();
   const { error } = await sb.from("reviews").upsert(
@@ -188,6 +192,35 @@ export async function createReview(prev: FormState, formData: FormData): Promise
 
   updateTag(TAGS.ebooks);
   revalidatePath(`/ebooku/${ebookId}`);
+  return { ok: true };
+}
+
+export async function deleteReview(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Please sign in first." };
+  const limited = await actionRateLimit("ebooks.review.delete", user.id, {
+    limit: 20,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return { error: limited };
+
+  const reviewId = String(formData.get("review_id") ?? "");
+  if (!reviewId) return { error: "Missing review." };
+
+  const sb = await supabaseServer();
+  const { data, error } = await sb
+    .from("reviews")
+    .delete()
+    .eq("id", reviewId)
+    .eq("user_id", user.id)
+    .select("id,ebook_id");
+
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "Review not found." };
+
+  const ebookId = (data[0] as { ebook_id: string | null }).ebook_id;
+  updateTag(TAGS.ebooks);
+  if (ebookId) revalidatePath(`/ebooku/${ebookId}`);
   return { ok: true };
 }
 
