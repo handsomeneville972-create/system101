@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ImageUp, Minus, Plus } from "lucide-react";
+import { FilePicker } from "@/components/ui/file-picker";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { prepareUpload, createApp } from "@/lib/actions/apps";
 
@@ -191,48 +193,47 @@ export function AppUploadForm() {
         />
       </div>
 
-      <label className="text-xs text-zinc-400">
-        App icon — JPG/PNG/WebP, max {MAX_ICON_MB}MB, square
-        <input
-          name="icon"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          required
-          className="mt-1 w-full text-sm text-zinc-400"
-        />
-      </label>
+      <FilePicker
+        name="icon"
+        accept="image/jpeg,image/png,image/webp"
+        icon={ImageUp}
+        label="Choose app icon"
+        changeLabel="Change app icon"
+        hint={`JPG, PNG or WebP · max ${MAX_ICON_MB}MB · square`}
+      />
 
       <div className="space-y-2">
-        <label className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-400">
           Screenshots (up to {MAX_SCREENSHOTS}) — JPG/PNG/WebP, max {MAX_SCREENSHOT_MB}MB each
-        </label>
-        <div className="flex gap-2 items-start">
-          {Array.from({ length: screenshotCount }).map((_, i) => (
-            <label key={i} className="flex flex-col gap-1">
-              Screenshot {i + 1}
-              <input
-                name="screenshots"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="w-full text-sm text-zinc-400"
-              />
-            </label>
-          ))}
+        </p>
+        {Array.from({ length: screenshotCount }).map((_, i) => (
+          <FilePicker
+            key={i}
+            name="screenshots"
+            accept="image/jpeg,image/png,image/webp"
+            icon={ImageUp}
+            label={`Choose screenshot ${i + 1}`}
+            changeLabel={`Change screenshot ${i + 1}`}
+          />
+        ))}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={addScreenshot}
             disabled={screenshotCount >= MAX_SCREENSHOTS}
-            className="text-xs text-zinc-400 hover:text-zinc-200 underline"
+            className="inline-flex items-center gap-1.5 rounded-full border hairline bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-zinc-200 transition-colors hover:bg-white/10 disabled:opacity-40"
           >
-            + Add screenshot
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add screenshot
           </button>
           {screenshotCount > 0 && (
             <button
               type="button"
               onClick={removeScreenshot}
-              className="text-xs text-zinc-500 hover:text-red-400 underline"
+              className="inline-flex items-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-red-400"
             >
-              − Remove
+              <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+              Remove
             </button>
           )}
         </div>

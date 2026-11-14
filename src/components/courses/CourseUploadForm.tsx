@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { FileUp } from "lucide-react";
+import { FilePicker } from "@/components/ui/file-picker";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { prepareCourseUpload, createCourse } from "@/lib/actions/courses";
 
@@ -103,15 +105,14 @@ export function CourseUploadForm() {
         placeholder="Tags (comma separated, optional)"
         className="w-full rounded-md border hairline bg-black px-3 py-2 text-sm"
       />
-      <label className="block text-xs text-zinc-400">
-        Notes — PDF, max {MAX_PDF_MB}MB (optional)
-        <input
-          name="resource"
-          type="file"
-          accept=".pdf,application/pdf"
-          className="mt-1 w-full text-sm text-zinc-400"
-        />
-      </label>
+      <FilePicker
+        name="resource"
+        accept=".pdf,application/pdf"
+        icon={FileUp}
+        label="Choose notes PDF"
+        changeLabel="Change notes PDF"
+        hint={`Optional · PDF · max ${MAX_PDF_MB}MB`}
+      />
       <label className="flex items-center gap-2 text-xs text-zinc-400">
         <input name="rights" type="checkbox" required /> I own the rights to this course.
       </label>
